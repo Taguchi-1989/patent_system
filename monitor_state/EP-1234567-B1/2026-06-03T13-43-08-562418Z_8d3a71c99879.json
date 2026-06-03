@@ -1,0 +1,60 @@
+{
+  "canonical": "EP-1234567-B1",
+  "fetched_at": "2026-06-03T13-43-08-562418Z",
+  "content_hash": "8d3a71c998798d3fb3ce6046681da73cbf1c23329bca1e0f30b7f2c92296e70d",
+  "record": {
+    "canonical": "EP-1234567-B1",
+    "office": "EP",
+    "number": "1234567",
+    "title": "Inductive charging device with coil position feedback",
+    "abstract": "An inductive charging device that determines relative coil alignment and regulates supplied power accordingly.",
+    "claims": [
+      "1. An inductive charging device comprising a primary coil; a feedback unit arranged to determine a relative alignment between the primary coil and a secondary coil; and a regulation unit configured to control supplied power based on the determined alignment.",
+      "2. The device according to claim 1, wherein the feedback unit comprises an array of Hall-effect sensors."
+    ],
+    "assignee": "Sample Induktiv GmbH",
+    "pub_date": "2020-03-11",
+    "legal_status": null,
+    "family_id": "FAM-0002",
+    "source": "Google Patents Public Data (BigQuery: patents.publications)",
+    "source_url": "https://patents.google.com/patent/EP-1234567-B1",
+    "notes": [
+      "claims split heuristically from a single text blob; verify boundaries",
+      "legal status not present in patents.publications (use INPADOC/OPS later)"
+    ],
+    "raw": {
+      "publication_number": "EP-1234567-B1",
+      "country_code": "EP",
+      "kind_code": "B1",
+      "application_number": "EP-20100001-A",
+      "publication_date": 20200311,
+      "filing_date": 20100210,
+      "grant_date": 20200311,
+      "family_id": "FAM-0002",
+      "title_localized": [
+        {
+          "text": "Inductive charging device with coil position feedback",
+          "language": "en"
+        }
+      ],
+      "abstract_localized": [
+        {
+          "text": "An inductive charging device that determines relative coil alignment and regulates supplied power accordingly.",
+          "language": "en"
+        }
+      ],
+      "claims_localized": [
+        {
+          "text": "1. An inductive charging device comprising a primary coil; a feedback unit arranged to determine a relative alignment between the primary coil and a secondary coil; and a regulation unit configured to control supplied power based on the determined alignment.\n2. The device according to claim 1, wherein the feedback unit comprises an array of Hall-effect sensors.",
+          "language": "en"
+        }
+      ],
+      "assignee_harmonized": [
+        {
+          "name": "Sample Induktiv GmbH",
+          "country_code": "DE"
+        }
+      ]
+    }
+  }
+}
