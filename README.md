@@ -5,6 +5,7 @@
 
 - 要件定義：[patent_ai_requirements_revised.md](patent_ai_requirements_revised.md)
 - **設計（批判的レビュー反映済み）：[docs/architecture.md](docs/architecture.md)** ← まずこれ
+- **決定論パイプライン化＋自校とワークフロー化の解説：[docs/workflow.html](docs/workflow.html)**（ブラウザで開く）
 
 ## 前提（重要な現実制約）
 
@@ -17,10 +18,15 @@
 ## いま動くもの（鍵不要）
 
 ```bash
-py tests/test_numbers.py        # 正準番号エンジンのテスト（11/11 green）
-py scripts/normalize_csv.py     # samples の番号を正準化して表示（曖昧入力は REVIEW 表示）
-py scripts/run_pipeline.py      # 全工程を通す: 正準化→取得(Fixture)→抽出要約→比較表→outputs/report.md
+py tests/test_numbers.py          # 正準番号エンジンのテスト（11/11 green）
+py scripts/normalize_csv.py       # samples の番号を正準化して表示（曖昧入力は REVIEW 表示）
+py scripts/run_pipeline.py        # 全工程を通す: 正準化→取得(Fixture)→抽出要約→比較表→outputs/report.md
+py scripts/pipeline_selfcheck.py  # 決定論パイプラインを2回走らせ8つの不変条件ゲートを自己検証（CIゲート・合否で終了コード）
 ```
+
+`scripts/pipeline_selfcheck.py` は決定論バックボーン（正準化→取得→要約→比較(HeuristicJudge)→
+スナップショット→出力）を回し、P-NO-GUESS・出典・決定性・免責などの不変条件を機械的に検証します。
+「形」と各ゲートは `src/patentkit/pipeline/contract.py` に宣言され、解説は [docs/workflow.html](docs/workflow.html)。
 
 `src/patentkit/normalize` は **依存ゼロ（純標準ライブラリ）** で、Colab の素のセルでも動きます。
 US / EP / WO / JP（西暦・元号・登録番号）を構造化し、曖昧な場合は `needs_review` を立てます
@@ -43,9 +49,10 @@ US / EP / WO / JP（西暦・元号・登録番号）を構造化し、曖昧な
 | `src/patentkit/state/` | 3. State/Snapshot：スナップショット＋差分エンジン ✅ |
 | `src/patentkit/analyze/` | 4. Analysis：抽出要約＋意味比較 MATCH/MISSING/UNCLEAR ✅ |
 | `src/patentkit/export/` | 5. Presentation：Markdown / 差分 / **静的HTMLサイト** ✅ |
-| `scripts/` | run_pipeline / monitor / build_site / eval_compare / verify_sources |
+| `src/patentkit/pipeline/` | 決定論パイプラインの「形」宣言＋自校ゲート（contract.py）✅ |
+| `scripts/` | run_pipeline / monitor / build_site / eval_compare / **pipeline_selfcheck** / verify_sources |
 | `.github/workflows/monitor.yml` | 6. 監視自動化（GitHub Actions cron）✅ |
-| `tests/` | Eval/Quality（67 tests） |
+| `tests/` | Eval/Quality（90 tests） |
 
 進捗は [docs/roadmap.md](docs/roadmap.md)（M0–M6 完了、M7 残）。
 

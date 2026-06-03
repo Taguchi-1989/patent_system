@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>patent_system — 決定論パイプライン & ワークフロー化</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --ink:#e7ebf0;
+    --muted:#9aa4b2; --line:#2a2f3a;
+    --det:#3fb950; --det-bg:#102417; --det-line:#1f6f33;
+    --agent:#d29922; --agent-bg:#2a2113; --agent-line:#8a6b1f;
+    --gate:#58a6ff; --gate-bg:#0f1d33;
+    --accent:#7c8cff; --bad:#f85149;
+    --mono:"SFMono-Regular",ui-monospace,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 22px 96px}
+  a{color:var(--gate);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code,kbd{font-family:var(--mono);font-size:0.86em}
+  /* hero */
+  header.hero{padding:56px 0 30px;border-bottom:1px solid var(--line);margin-bottom:38px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+  h1{font-size:2.05em;line-height:1.2;margin:0 0 14px;letter-spacing:-.01em}
+  .lede{font-size:1.08em;color:var(--muted);max-width:74ch;margin:0}
+  .lede b{color:var(--ink);font-weight:600}
+  /* toc */
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 0}
+  .toc a{font-family:var(--mono);font-size:12.5px;color:var(--muted);
+    border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+  .toc a:hover{color:var(--ink);border-color:var(--accent);text-decoration:none}
+  /* sections */
+  section{margin:50px 0;scroll-margin-top:20px}
+  h2{font-size:1.4em;margin:0 0 6px;letter-spacing:-.01em;
+    display:flex;align-items:baseline;gap:12px}
+  h2 .n{font-family:var(--mono);font-size:.62em;color:var(--accent);font-weight:700}
+  h3{font-size:1.05em;margin:26px 0 8px;color:#cdd5df}
+  .sub{color:var(--muted);margin:0 0 18px;max-width:78ch}
+  p{max-width:80ch}
+  /* legend chips */
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0 6px;font-size:13px}
+  .chip{display:inline-flex;align-items:center;gap:7px;color:var(--muted)}
+  .dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .dot.det{background:var(--det)} .dot.agent{background:var(--agent)}
+  .dot.gate{background:var(--gate)}
+  /* flow diagram */
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:24px 0 8px}
+  .node{flex:1 1 150px;min-width:150px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:13px 14px;position:relative}
+  .node.det{border-color:var(--det-line);background:linear-gradient(180deg,var(--det-bg),var(--panel))}
+  .node.agent{border-color:var(--agent-line);background:linear-gradient(180deg,var(--agent-bg),var(--panel))}
+  .node .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
+    text-transform:uppercase;font-weight:700}
+  .node.det .k{color:var(--det)} .node.agent .k{color:var(--agent)}
+  .node .t{font-weight:600;margin:5px 0 4px;font-size:.95em}
+  .node .d{color:var(--muted);font-size:12px;line-height:1.5}
+  .arrow{align-self:center;color:var(--line);font-size:22px;padding:0 6px;flex:0 0 auto}
+  .seam-note{font-size:12.5px;color:var(--agent);font-family:var(--mono);
+    margin:10px 0 0;padding-left:2px}
+  /* two-col cards */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .card.det{border-left:3px solid var(--det)}
+  .card.agent{border-left:3px solid var(--agent)}
+  .card h4{margin:0 0 8px;font-size:1em;display:flex;align-items:center;gap:8px}
+  .card ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px}
+  .card li{margin:4px 0}
+  .card li b{color:var(--ink);font-weight:600}
+  /* table */
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+    font-weight:600;border-bottom:1px solid var(--line)}
+  td .gid{font-family:var(--mono);color:var(--gate);font-weight:600;white-space:nowrap}
+  tbody tr:hover{background:#12151c}
+  td.proves{color:var(--muted)}
+  /* code block */
+  pre{background:#0b0d11;border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;overflow:auto;margin:14px 0;line-height:1.6}
+  pre code{color:#cdd5df;font-size:12.7px}
+  .cmt{color:#5c6675}
+  .ok{color:var(--det)} .flag{color:var(--agent)} .no{color:var(--bad)}
+  .kw{color:var(--gate)}
+  /* callout */
+  .callout{border:1px solid var(--line);border-left:3px solid var(--accent);
+    background:var(--panel);border-radius:10px;padding:14px 18px;margin:18px 0;
+    color:var(--muted);font-size:13.8px}
+  .callout b{color:var(--ink)}
+  .callout.warn{border-left-color:var(--agent)}
+  /* step list */
+  ol.steps{counter-reset:s;list-style:none;padding:0;margin:18px 0}
+  ol.steps>li{position:relative;padding:0 0 16px 44px;margin:0}
+  ol.steps>li:before{counter-increment:s;content:counter(s);position:absolute;left:0;top:-2px;
+    width:30px;height:30px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);
+    color:var(--accent);font-family:var(--mono);font-weight:700;font-size:13px;
+    display:flex;align-items:center;justify-content:center}
+  ol.steps>li b{color:var(--ink)}
+  ol.steps>li span{color:var(--muted);font-size:13.6px}
+  /* pills */
+  .pill{display:inline-block;font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:6px;
+    border:1px solid var(--line);color:var(--muted)}
+  .pill.det{color:var(--det);border-color:var(--det-line)}
+  .pill.agent{color:var(--agent);border-color:var(--agent-line)}
+  footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:12.5px;line-height:1.6}
+  .disc{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:13px 16px;font-size:12.5px;color:var(--muted);margin-top:18px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}.flow{flex-direction:column}
+    .arrow{transform:rotate(90deg);padding:2px 0}.node{flex-basis:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">patent_system · pipeline &amp; workflow</p>
+  <h1>決定論パイプライン化と自校（セルフチェック）</h1>
+  <p class="lede">
+    この特許調査システムのうち <b>コードで確定できる工程はすべて決定論パイプライン</b>に固め、
+    判断が要る一点だけを <b>エージェント（黒子）の接続点</b>として残しました。
+    パイプラインは Python で「形」を宣言し、実行のたびに自分の不変条件（P-NO-GUESS・出典・
+    決定性・免責）を <b>自己検証（自校）</b>します。本書はその設計と、CI／cron への
+    ワークフロー化を説明します。
+  </p>
+  <nav class="toc">
+    <a href="#boundary">① 決定論の境界</a>
+    <a href="#shape">② パイプラインの形</a>
+    <a href="#gates">③ 自校ゲート</a>
+    <a href="#seam">④ エージェント接続点</a>
+    <a href="#run">⑤ 実行方法</a>
+    <a href="#workflow">⑥ ワークフロー化</a>
+  </nav>
+</header>
+
+<!-- ===================================================================== -->
+<section id="boundary">
+  <h2><span class="n">01</span> 何を決定論化し、何をエージェントに残したか</h2>
+  <p class="sub">
+    原則：<b>確定的な抽出・構造化はコードで</b>、<b>意味の判断だけをエージェントで</b>。
+    境界をコードの型（<code>Judge</code> プロトコル）で切り、片側を完全に再現可能にしました。
+  </p>
+
+  <div class="legend">
+    <span class="chip"><span class="dot det"></span>決定論：同じ入力 → 同じ出力（モデル・鍵なし、バイト一致で再現）</span>
+    <span class="chip"><span class="dot agent"></span>エージェント：意味判断の継ぎ目（LLM 差し替え可・再現対象外）</span>
+  </div>
+
+  <div class="grid2">
+    <div class="card det">
+      <h4><span class="pill det">DETERMINISTIC</span> コードで確定できる工程</h4>
+      <ul>
+        <li><b>正準化</b> — 番号文字列 → <code>CanonicalNumber</code>（純標準ライブラリ）。曖昧入力は <code>needs_review</code>。</li>
+        <li><b>取得</b> — <code>PatentSource.fetch()</code>。<b>凍結ソース</b>（Fixture／保存済み BigQuery エクスポート／DL 済み一括 XML）上で決定論的。</li>
+        <li><b>抽出要約</b> — 書誌一行＋請求項のヒューリスティック要素分解。</li>
+        <li><b>意味比較（既定）</b> — <code>HeuristicJudge</code>（トークン重なり）。鍵不要・決定論的。</li>
+        <li><b>状態・差分</b> — 内容ハッシュ基準のスナップショット＋フィールド差分。</li>
+        <li><b>出力</b> — Markdown／静的 HTML。免責と出典を必ず付与。</li>
+      </ul>
+    </div>
+    <div class="card agent">
+      <h4><span class="pill agent">AGENT SEAM</span> 判断をエージェントに委ねる一点</h4>
+      <ul>
+        <li><b>意味判定（LLM Judge）</b> — 技術仕様 × 請求項要素を <code>MATCH / MISSING / UNCLEAR</code> に対応付ける本質的な判断。</li>
+        <li>差し込み口は <code>compare(spec, summary, judge=…)</code> の <b><code>Judge</code> プロトコル</b>だけ。他のコードは無変更。</li>
+        <li><b>LLM の鍵も不要</b>：黒子の Claude Code がそのまま Judge を務める。</li>
+        <li>ただし <b>P-NO-GUESS は構造で強制</b>：<code>ElementVerdict.__post_init__</code> が根拠なき MATCH を機械的に UNCLEAR へ降格。<i>どの</i> Judge でも捏造判定は不可能。</li>
+        <li><b>ライブ取得</b>（BigQuery 直クエリ）も非決定論。ゲート前にエクスポートで凍結する。</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <b>なぜこの切り方か。</b> 監視・回帰・CI ゲートに必要なのは「同じ入力なら毎回同じ結果」という再現性です。
+    意味判断は本質的に揺れるため決定論にはできません。そこで揺れる部分を一点に隔離し、
+    残り全部を<b>自分で検証できる決定論パイプライン</b>に固めました。自校が緑である限り、
+    エージェントを差し替えても土台の保証（出典・P-NO-GUESS・免責）は崩れません。
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="shape">
+  <h2><span class="n">02</span> パイプラインの「形」（Python で宣言）</h2>
+  <p class="sub">
+    形は <code>src/patentkit/pipeline/contract.py</code> の <code>STAGES</code> に
+    <b>宣言データとして一元化</b>。レポート・本書・ランナーはすべてこの単一ソースを読みます。
+  </p>
+
+  <div class="flow">
+    <div class="node det"><div class="k">det · ingest</div><div class="t">1. 正準化</div><div class="d">番号 → CanonicalNumber<br>曖昧は needs_review</div></div>
+    <div class="arrow">→</div>
+    <div class="node det"><div class="k">det · retrieve</div><div class="t">2. 取得</div><div class="d">凍結ソース経由<br>Provider パターン</div></div>
+    <div class="arrow">→</div>
+    <div class="node det"><div class="k">det · summarize</div><div class="t">3. 抽出要約</div><div class="d">書誌＋請求項<br>要素分解（要検証）</div></div>
+    <div class="arrow">→</div>
+    <div class="node agent"><div class="k">agent · compare</div><div class="t">4. 意味比較</div><div class="d">MATCH/MISSING/UNCLEAR<br>Judge 差し替え点</div></div>
+    <div class="arrow">→</div>
+    <div class="node det"><div class="k">det · snapshot</div><div class="t">5. 状態・差分</div><div class="d">内容ハッシュ<br>フィールド差分</div></div>
+    <div class="arrow">→</div>
+    <div class="node det"><div class="k">det · present</div><div class="t">6. 出力</div><div class="d">Markdown / HTML<br>免責・出典付与</div></div>
+  </div>
+  <p class="seam-note">▲ 工程4だけがエージェントの継ぎ目。既定の <code>HeuristicJudge</code>（決定論）が自校の対象。</p>
+
+  <h3>形を表すコード（抜粋）</h3>
+  <pre><code><span class="cmt"># src/patentkit/pipeline/contract.py — 各 Stage は宣言メタデータ</span>
+STAGES = (
+  Stage(<span class="kw">"ingest"</span>,    <span class="cmt"># 1</span>  kind=DETERMINISTIC, gate_ids=(<span class="kw">"G-NORMALIZE-REVIEW"</span>,)),
+  Stage(<span class="kw">"retrieve"</span>,  <span class="cmt"># 2</span>  kind=DETERMINISTIC, gate_ids=(<span class="kw">"G-PROVENANCE"</span>,)),
+  Stage(<span class="kw">"summarize"</span>, <span class="cmt"># 3</span>  kind=DETERMINISTIC),
+  Stage(<span class="kw">"compare"</span>,   <span class="cmt"># 4</span>  kind=<span class="flag">AGENT</span>,
+        gate_ids=(<span class="kw">"G-NO-GUESS"</span>, <span class="kw">"G-EVIDENCE-SUBSTRING"</span>, <span class="kw">"G-UNCLEAR-REVIEW"</span>),
+        agent_seam=<span class="kw">"compare(spec, summary, judge=&lt;LLM Judge&gt;)"</span>),
+  Stage(<span class="kw">"snapshot"</span>,  <span class="cmt"># 5</span>  kind=DETERMINISTIC, gate_ids=(<span class="kw">"G-SNAPSHOT-STABLE"</span>,)),
+  Stage(<span class="kw">"present"</span>,   <span class="cmt"># 6</span>  kind=DETERMINISTIC, gate_ids=(<span class="kw">"G-DISCLAIMER"</span>,)),
+)</code></pre>
+
+  <div class="callout">
+    <b>Provider パターンが昇格の鍵。</b> 取得は <code>PatentSource</code> 抽象にのみ依存します。
+    <code>FixtureSource</code> → <code>BigQuerySource</code> に<b>差し替えるだけ</b>で、パイプライン本体を
+    一行も変えずに鍵なしデモから実データへ移行できます（決定論ゲートは凍結エクスポートで担保）。
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="gates">
+  <h2><span class="n">03</span> 自校ゲート（実行のたびに自分を検証）</h2>
+  <p class="sub">
+    各ゲートは、コード内に文書化済みの不変条件を<b>機械的に再検証</b>します。違反しても例外は投げず
+    <code>passed=False</code> と違反項目を返すので、全失敗を一度に提示できます。8 ゲートすべて緑＝
+    <b>パイプラインが自分の保証を証明した</b>状態です。
+  </p>
+
+  <div class="legend"><span class="chip"><span class="dot gate"></span>ゲート＝1つの不変条件チェック（純関数・個別テスト可能）</span></div>
+
+  <table>
+    <thead><tr><th>ゲート</th><th>工程</th><th>証明する不変条件（なぜ要るか）</th></tr></thead>
+    <tbody>
+      <tr><td><span class="gid">G-NORMALIZE-REVIEW</span></td><td>1 正準化</td>
+        <td class="proves">曖昧な正準化（confidence&lt;0.85 か庁 UNKNOWN）は必ず <code>needs_review</code>。<b>沈黙して誤接合しない</b>（P-NO-GUESS）。</td></tr>
+      <tr><td><span class="gid">G-PROVENANCE</span></td><td>2 取得</td>
+        <td class="proves">全レコードに非空の <code>source</code>。<b>出典なき下流主張をゼロにする</b>（§7.2）。</td></tr>
+      <tr><td><span class="gid">G-NO-GUESS</span></td><td>4 意味比較</td>
+        <td class="proves">根拠スパンなしの <code>MATCH</code> は存在しない。<b>P-NO-GUESS の本丸</b>（構造的に降格）。</td></tr>
+      <tr><td><span class="gid">G-EVIDENCE-SUBSTRING</span></td><td>4 意味比較</td>
+        <td class="proves">全根拠スパンが対象仕様の<b>実在の部分文字列</b>。引用の捏造を不可能にする。</td></tr>
+      <tr><td><span class="gid">G-UNCLEAR-REVIEW</span></td><td>4 意味比較</td>
+        <td class="proves">全 <code>UNCLEAR</code> は <code>needs_review</code>。<b>曖昧を自動確定しない</b>（人へエスカレーション）。</td></tr>
+      <tr><td><span class="gid">G-SNAPSHOT-STABLE</span></td><td>5 状態・差分</td>
+        <td class="proves">同一内容の再保存は「変更なし」。<b>監視が空振り通知を出さない</b>（内容ハッシュ等価）。</td></tr>
+      <tr><td><span class="gid">G-DISCLAIMER</span></td><td>6 出力</td>
+        <td class="proves">出力に必須の免責が含まれる（§6.5）。法的結論の確定でないことを明示。</td></tr>
+      <tr><td><span class="gid">G-DETERMINISM</span></td><td>横断</td>
+        <td class="proves">決定論バックボーンを<b>2回走らせ、成果物がバイト一致</b>。非決定性の混入を検知する自校の本命。</td></tr>
+    </tbody>
+  </table>
+
+  <h3>自校の実行結果（<code>py scripts/pipeline_selfcheck.py</code>）</h3>
+  <pre><code>Self-check gates (自校)
+  1. Ingestion / 正準化           <span class="ok">[PASS]</span> G-NORMALIZE-REVIEW   ( 10 checked) all consistent
+  2. Retrieval / 取得             <span class="ok">[PASS]</span> G-PROVENANCE         (  2 checked) all sourced
+  4. Analysis / 意味比較          <span class="ok">[PASS]</span> G-NO-GUESS           (  5 checked) no ungrounded MATCH
+                                  <span class="ok">[PASS]</span> G-EVIDENCE-SUBSTRING ( 10 checked) all spans verbatim
+                                  <span class="ok">[PASS]</span> G-UNCLEAR-REVIEW     (  5 checked) all escalated
+  5. State / Snapshot + Diff      <span class="ok">[PASS]</span> G-SNAPSHOT-STABLE    (  2 checked) identical save ⇒ changed=False
+  6. Presentation / 出力          <span class="ok">[PASS]</span> G-DISCLAIMER         (  1 checked) disclaimer present
+  cross-cutting                   <span class="ok">[PASS]</span> G-DETERMINISM        (  2 checked) fingerprint stable
+
+<span class="ok">OK — pipeline self-verifies: 8/8 gates passed</span>
+deterministic fingerprint: e9812df7aa9822e5…</code></pre>
+
+  <div class="callout">
+    <b>「自校が落ちない」では意味がない。</b> テスト <code>tests/test_pipeline_contract.py</code> は
+    各ゲートに<b>わざと壊した入力</b>を与え、ちゃんと <code>FAIL</code> することまで検証します
+    （捏造 MATCH・出典欠落・偽の根拠スパン等）。検知できないゲートは無価値だからです。
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="seam">
+  <h2><span class="n">04</span> エージェントの接続点（黒子の差し込み）</h2>
+  <p class="sub">
+    意味判定だけを <code>Judge</code> プロトコルの裏に隔離しています。既定は決定論の
+    <code>HeuristicJudge</code>。より賢い判定が要るときは、同じ口に LLM 版を差すだけです。
+  </p>
+  <pre><code><span class="cmt"># 既定（決定論・鍵なし）: 自校の対象</span>
+result = compare(target_spec, summary)                  <span class="cmt"># judge=HeuristicJudge()</span>
+
+<span class="cmt"># エージェント差し替え（黒子の Claude Code が Judge を務める。他は無変更）</span>
+class <span class="kw">AgentJudge</span>:
+    def judge(self, element, target_spec, claim_context) -> ElementVerdict:
+        <span class="cmt"># LLM の意味判断。ただし返り値は __post_init__ を通るため</span>
+        <span class="cmt"># 根拠なき MATCH は構造的に UNCLEAR へ降格される（P-NO-GUESS）。</span>
+        ...
+result = compare(target_spec, summary, judge=<span class="kw">AgentJudge</span>())</code></pre>
+  <div class="callout warn">
+    <b>降格は誰にも止められない。</b> <code>ElementVerdict.__post_init__</code> が
+    「根拠スパンなしの MATCH」「confidence&lt;0.3 の MATCH」を機械的に <code>UNCLEAR</code> に落とします。
+    つまり <i>どの</i> Judge を差しても、自校ゲート <code>G-NO-GUESS</code> は構造的に守られます。
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="run">
+  <h2><span class="n">05</span> 実行方法（鍵ゼロで全部動く）</h2>
+  <p class="sub">既定は <code>FixtureSource</code>（ローカル標本・ネットワーク不要）。<code>py</code> で実行します。</p>
+  <pre><code><span class="cmt"># ① 自校：決定論パイプラインを2回走らせ 8 ゲートを検証（CI ゲート / 終了コードで合否）</span>
+py scripts/pipeline_selfcheck.py
+py scripts/pipeline_selfcheck.py --json        <span class="cmt"># 機械可読（CI アーティファクト向け）</span>
+
+<span class="cmt"># ② 通し：正準化→取得→要約→（--spec があれば比較）→ outputs/report.md</span>
+py scripts/run_pipeline.py
+py scripts/run_pipeline.py --spec samples/target_spec_SAMPLE.md
+
+<span class="cmt"># ③ 監視：取得→スナップショット→差分→ outputs/diff_report.md</span>
+py scripts/monitor.py
+
+<span class="cmt"># ④ 静的サイト：一覧→詳細→比較→差分履歴 を site/ に生成</span>
+py scripts/build_site.py --spec samples/target_spec_SAMPLE.md
+
+<span class="cmt"># ⑤ 評価：HeuristicJudge の golden 一致率を測定（合否ではなく計測）</span>
+py scripts/eval_compare.py
+
+<span class="cmt"># ⑥ テスト一式（90 件）</span>
+py -m pytest tests/ -q</code></pre>
+  <div class="callout">
+    <b>実データへの昇格</b>は <code>--source</code> の差し替えだけ。<br>
+    <code>--source bq-export --export results.json</code>（BigQuery コンソールの保存 JSON）／
+    <code>--source bq --project &lt;GCP&gt;</code>（ライブ）／<code>--source bulk --bulk-files …</code>（USPTO 一括）。
+    決定論ゲートを掛けるときは、ライブではなく<b>凍結エクスポート</b>を入力にしてください。
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="workflow">
+  <h2><span class="n">06</span> ワークフロー化（CI ＋ 定期監視）</h2>
+  <p class="sub">
+    決定論にしたからこそ、機械が回せます。2 つのループに落とし込みます：
+    <b>マージ前ゲート（自校）</b>と <b>定期監視ループ（cron）</b>。
+  </p>
+
+  <h3>A. マージ前ゲート — 「土台が壊れていない」を毎回証明</h3>
+  <ol class="steps">
+    <li><b>PR / push で <code>pipeline_selfcheck.py</code> を実行。</b>
+      <span>8 ゲートが緑なら終了コード 0、1つでも落ちれば 1。CI がそのままブロックします。</span></li>
+    <li><b><code>pytest tests/</code>（90 件）も実行。</b>
+      <span>純関数・ゲートの失敗検知・回帰しきい値（HeuristicJudge ≥ 0.60）まで担保。</span></li>
+    <li><b>決定性は fingerprint で監視。</b>
+      <span>意図せぬ非決定性が混入すると <code>G-DETERMINISM</code> が即落ちます。</span></li>
+  </ol>
+  <pre><code><span class="cmt"># .github/workflows/ に1ジョブ追加するだけ（鍵不要・FixtureSource）</span>
+- run: py scripts/pipeline_selfcheck.py     <span class="cmt"># 自校（合否ゲート）</span>
+- run: py -m pytest tests/ -q               <span class="cmt"># 単体・回帰</span></code></pre>
+
+  <h3>B. 定期監視ループ — 既存の cron に同居</h3>
+  <p>
+    監視は既に <code>.github/workflows/monitor.yml</code> が <b>GitHub Actions の cron</b>
+    （毎週水曜 06:00 UTC）で回しています。揮発する Colab ではなく Actions を使うのが設計判断です。
+  </p>
+  <ol class="steps">
+    <li><b>取得 → スナップショット → 差分。</b>
+      <span><code>monitor.py</code> が <code>monitor_state/</code> に内容ハッシュ付きで保存。</span></li>
+    <li><b>Actions が変更をコミットして戻す。</b>
+      <span>Git 履歴がそのまま<b>監視の監査証跡</b>になる（§7.1）。差分レポートは artifact。</span></li>
+    <li><b>実データへは <code>--source</code> 差し替えのみ。</b>
+      <span>例：<code>--source bulk --bulk-files &lt;週次XML&gt;</code>。パイプライン本体は無変更。</span></li>
+  </ol>
+
+  <div class="callout">
+    <b>黒子（エージェント）はどこに入るか。</b> 決定論ループが <code>UNCLEAR</code> を出した要素＝
+    <b>人／エージェントの確認待ち行列</b>です。Claude Code が <code>Judge</code> として意味判定を補強し、
+    その結果も再び <code>__post_init__</code> と自校ゲートを通るので、土台の保証は保たれたまま品質だけ上がります。
+    <b>人は「リスト出所確認・比較観点定義・最終法務レビュー」に集中</b>します（無人化ではなく確認コスト最小化）。
+  </div>
+
+  <h3>全体像</h3>
+  <div class="flow">
+    <div class="node det" style="flex-basis:200px"><div class="k">loop A · pre-merge</div><div class="t">自校 + テスト</div><div class="d">8 ゲート / 90 tests<br>決定性 fingerprint</div></div>
+    <div class="arrow">→</div>
+    <div class="node det" style="flex-basis:200px"><div class="k">loop B · cron</div><div class="t">取得→差分→通知</div><div class="d">Actions weekly<br>Git = 監査証跡</div></div>
+    <div class="arrow">→</div>
+    <div class="node agent" style="flex-basis:200px"><div class="k">agent · on UNCLEAR</div><div class="t">意味判定の補強</div><div class="d">Judge 差し替え<br>保証は不変</div></div>
+    <div class="arrow">→</div>
+    <div class="node det" style="flex-basis:200px"><div class="k">human · review</div><div class="t">最終確認</div><div class="d">出所・観点<br>法務レビュー</div></div>
+  </div>
+</section>
+
+<footer>
+  <div><b>参照ファイル：</b>
+    <code>src/patentkit/pipeline/contract.py</code>（形＋ゲート）·
+    <code>scripts/pipeline_selfcheck.py</code>（自校 CLI）·
+    <code>tests/test_pipeline_contract.py</code>（ゲートの検証）·
+    <code>docs/architecture.md</code>（設計）·
+    <code>.github/workflows/monitor.yml</code>（cron）
+  </div>
+  <div class="disc">
+    <b>免責：</b> 本システムの出力は AI による支援結果であり、侵害の有無や法的結論を確定しません。
+    最終判断は弁理士・弁護士等の専門家確認を前提とします。
+  </div>
+</footer>
+
+</div>
+</body>
+</html>
