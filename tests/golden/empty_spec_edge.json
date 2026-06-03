@@ -1,0 +1,32 @@
+{
+  "name": "empty_spec_edge",
+  "description": "Edge case: extremely short two-sentence spec with minimal technical content. Tests heuristic behavior on minimal input. The spec has almost no domain-specific vocabulary, so most claim elements should be MISSING or UNCLEAR — not falsely MATCH. Honest labeling: do not inflate expectations.",
+  "target_spec": "Smart device. This product controls power.",
+  "patent": {
+    "canonical": "US-10123456-B2",
+    "office": "US",
+    "number": "10123456",
+    "title": "Wireless power transfer with adaptive coil alignment",
+    "claims": [
+      "1. A wireless power transfer apparatus comprising a transmitter coil; a position sensor configured to detect a position of a receiver coil; and a controller configured to adjust a drive signal based on the detected position.",
+      "2. The apparatus of claim 1, wherein the position sensor comprises a plurality of magnetic field sensors."
+    ]
+  },
+  "expected_verdicts": [
+    {
+      "element_substring": "transmitter coil",
+      "expected": "MISSING",
+      "rationale": "the two-sentence spec has no coil, transmitter, or wireless terms"
+    },
+    {
+      "element_substring": "position sensor",
+      "expected": "MISSING",
+      "rationale": "sensor and position detection absent from the minimal spec"
+    },
+    {
+      "element_substring": "controller",
+      "expected": "UNCLEAR",
+      "rationale": "'controls' appears in spec ('controls power') giving partial token overlap with 'controller'; heuristic may find partial match; UNCLEAR is the honest label — not MATCH, not clean MISSING"
+    }
+  ]
+}

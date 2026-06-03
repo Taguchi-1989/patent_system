@@ -16,6 +16,7 @@ Source friction ladder (lowest first):
 from .base import PatentRecord, PatentSource
 from .bigquery import BigQueryExportSource, BigQuerySource, record_from_bq_row
 from .bulk_uspto import BulkDataSource, parse_uspto_grant_xml, week_url_for_date
+from .fallback import FallbackSource, RetryingSource
 from .fixture import FixtureSource
 
 __all__ = [
@@ -28,4 +29,6 @@ __all__ = [
     "BulkDataSource",
     "parse_uspto_grant_xml",
     "week_url_for_date",
+    "FallbackSource",
+    "RetryingSource",
 ]

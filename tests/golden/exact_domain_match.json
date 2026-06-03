@@ -1,0 +1,32 @@
+{
+  "name": "exact_domain_match",
+  "description": "Battery Management System spec vs BMS patent. Same domain, high overlap. All three claim elements should appear in the spec with enough token overlap for MATCH. Acts as sanity baseline: if the heuristic scores well anywhere it should be here.",
+  "target_spec": "Battery Management System for Lithium-Ion Packs\n\nThis system monitors and protects a lithium-ion battery pack. A voltage sensor measures cell voltage across each cell in the pack and reports measurements to the control unit. A temperature sensor monitors cell temperature to prevent thermal runaway. The control unit processes voltage and temperature readings and controls a protection circuit that disconnects the battery pack if voltage or temperature exceeds safe limits. A state-of-charge estimator computes remaining capacity from measured voltage and current.",
+  "patent": {
+    "canonical": "US-30456789-B2",
+    "office": "US",
+    "number": "30456789",
+    "title": "Battery management system with integrated cell voltage and temperature protection",
+    "claims": [
+      "1. A battery management system comprising a voltage sensor configured to measure cell voltage of a battery pack; a temperature sensor configured to monitor cell temperature; and a control unit configured to control a protection circuit based on the measured cell voltage and the monitored cell temperature.",
+      "2. The system of claim 1, wherein the control unit disconnects the battery pack when the cell voltage exceeds a threshold."
+    ]
+  },
+  "expected_verdicts": [
+    {
+      "element_substring": "voltage sensor",
+      "expected": "MATCH",
+      "rationale": "spec explicitly says 'A voltage sensor measures cell voltage' — direct vocabulary match"
+    },
+    {
+      "element_substring": "temperature sensor",
+      "expected": "MATCH",
+      "rationale": "spec explicitly says 'A temperature sensor monitors cell temperature' — direct vocabulary match"
+    },
+    {
+      "element_substring": "control unit",
+      "expected": "MATCH",
+      "rationale": "spec says 'control unit processes voltage and temperature readings and controls a protection circuit' — control unit and protection circuit both present"
+    }
+  ]
+}

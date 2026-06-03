@@ -1,0 +1,32 @@
+{
+  "name": "adjacent_domain_camera",
+  "description": "Camera image stabilization spec vs gyroscope-based stabilization patent. Adjacent domain: some mechanical vocabulary overlaps (actuator, sensor, controller) but the patent's specific 'gyroscope' and 'correction signal' terms are absent from the camera spec, which uses 'accelerometer' and 'compensation frame'. Tests near-miss vocabulary behavior honestly — the heuristic should NOT over-match on generic shared terms like 'controller'.",
+  "target_spec": "Digital Camera Optical Image Stabilization Module\n\nThis module corrects motion blur caused by hand tremor during image capture. An accelerometer mounted on the camera body detects angular velocity and linear acceleration in three axes. A DSP unit computes a compensation frame offset based on the measured motion. A voice coil motor actuator shifts the lens group laterally within a 2 mm range to counteract the detected motion. The controller applies correction in real time at 2 kHz to keep the image stable on the sensor plane.",
+  "patent": {
+    "canonical": "US-20345678-B2",
+    "office": "US",
+    "number": "20345678",
+    "title": "Gyroscope-based image stabilization with predictive correction signal",
+    "claims": [
+      "1. An image stabilization apparatus comprising a gyroscope sensor configured to detect rotational motion of a camera body; a signal processor configured to compute a correction signal based on the detected rotational motion; and an actuator configured to move a lens element in response to the correction signal.",
+      "2. The apparatus of claim 1, wherein the actuator is a voice coil motor."
+    ]
+  },
+  "expected_verdicts": [
+    {
+      "element_substring": "gyroscope sensor",
+      "expected": "MISSING",
+      "rationale": "spec uses 'accelerometer', not a gyroscope; 'gyroscope' and 'rotational' are absent from the spec text"
+    },
+    {
+      "element_substring": "correction signal",
+      "expected": "UNCLEAR",
+      "rationale": "spec says 'compensation frame offset' and 'correction' appears in 'correction in real time'; partial keyword overlap makes this UNCLEAR rather than a clean MISSING"
+    },
+    {
+      "element_substring": "actuator",
+      "expected": "MATCH",
+      "rationale": "spec explicitly mentions 'voice coil motor actuator' — actuator keyword matches directly"
+    }
+  ]
+}
