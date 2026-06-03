@@ -1,0 +1,41 @@
+# --- Secrets / credentials (NEVER commit) ---
+.env
+.env.*
+!.env.example
+*.key
+credentials*.json
+
+# --- Case data / outputs (private by policy: §2.1, §5.2) ---
+/outputs/*
+!/outputs/.gitkeep
+/data/private/
+/cache/
+/site/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# --- Notebooks ---
+.ipynb_checkpoints/
+
+# --- Verification artifacts (screenshots, playwright) ---
+/.playwright-mcp/
+/m5-*.png
+
+# --- OMC tooling state ---
+/.omc/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

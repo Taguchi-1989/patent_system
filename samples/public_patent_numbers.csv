@@ -1,0 +1,11 @@
+number,note
+US10123456B2,US grant with kind code
+"US 9,876,543 B1",US grant with separators
+US20210123456A1,US application publication (11-digit)
+EP1234567B1,EP grant
+EP 2 345 678 A1,EP publication with spaces
+WO2020/123456A1,PCT/WO publication
+特開2003-123456,JP Kokai (Western year)
+JP2003123456A,JP Kokai (latin form)
+特開平10-123456,JP Kokai (Heisei era - flagged on normalize)
+特許第4123456号,JP grant serial (no year encoded - flagged)

@@ -1,0 +1,19 @@
+{
+  "canonical": "US-10123456-B2",
+  "office": "US",
+  "number": "10123456",
+  "title": "Wireless power transfer with adaptive coil alignment",
+  "abstract": "A wireless charging system comprising a transmitter coil and a controller that detects receiver coil position and adjusts the transmitted field to maximize coupling efficiency.",
+  "claims": [
+    "A wireless power transfer apparatus comprising: a transmitter coil; a position sensor configured to detect a position of a receiver coil; and a controller configured to adjust a drive signal of the transmitter coil based on the detected position to increase coupling efficiency.",
+    "The apparatus of claim 1, wherein the position sensor comprises a plurality of magnetic field sensors arranged around the transmitter coil.",
+    "The apparatus of claim 1, wherein the controller adjusts a frequency of the drive signal."
+  ],
+  "assignee": "Sample Wireless Corp.",
+  "pub_date": "2021-09-14",
+  "legal_status": "Granted - in force",
+  "family_id": "FAM-0001",
+  "source": "FIXTURE (sample data, not a real patent)",
+  "source_url": null,
+  "notes": ["Synthetic sample for end-to-end pipeline demo; not a real USPTO record."]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "partial_overlap",
+  "description": "EV inductive charging spec vs EP inductive charging patent. Partial overlap: primary coil matches, but alignment feedback and regulation approach differ.",
+  "target_spec": "Electric Vehicle Inductive Charging Station Specification\n\nThis vehicle charging station uses a primary coil embedded in the ground pad to transfer power inductively to a secondary coil mounted on the vehicle underbody. The station operates at 85 kHz per SAE J2954 standard. A vehicle positioning guidance system uses ultrasonic sensors to help the driver align the vehicle over the ground pad. Supplied power ranges from 3.3 kW to 11 kW depending on vehicle battery state. Thermal sensors monitor ground pad temperature.",
+  "patent": {
+    "canonical": "EP-1234567-B1",
+    "office": "EP",
+    "number": "1234567",
+    "title": "Inductive charging device with coil position feedback",
+    "claims": [
+      "1. An inductive charging device comprising a primary coil; a feedback unit arranged to determine a relative alignment between the primary coil and a secondary coil; and a regulation unit configured to control supplied power based on the determined alignment.",
+      "2. The device according to claim 1, wherein the feedback unit comprises an array of Hall-effect sensors."
+    ]
+  },
+  "expected_verdicts": [
+    {
+      "element_substring": "primary coil",
+      "expected": "MATCH",
+      "rationale": "primary coil and secondary coil both appear explicitly in the EV spec"
+    },
+    {
+      "element_substring": "feedback unit",
+      "expected": "UNCLEAR",
+      "rationale": "spec mentions positioning guidance but not a feedback unit for alignment determination; partial concept overlap"
+    },
+    {
+      "element_substring": "regulation unit",
+      "expected": "UNCLEAR",
+      "rationale": "supplied power is mentioned but regulation unit controlling power based on alignment is not directly stated"
+    }
+  ]
+}

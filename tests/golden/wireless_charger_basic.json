@@ -1,0 +1,32 @@
+{
+  "name": "wireless_charger_basic",
+  "description": "Wireless charger spec vs wireless power patent. High overlap expected for coil and position sensor elements.",
+  "target_spec": "Wireless Charger with Coil-Alignment Feedback\n\nThis product includes a transmitter coil that operates at resonance frequency to transfer power wirelessly. A position sensor detects the receiver coil position with high accuracy. A controller adjusts the drive signal frequency based on the detected position to maximize power transfer efficiency. The system also provides power regulation from 5 W to 15 W.",
+  "patent": {
+    "canonical": "US-10123456-B2",
+    "office": "US",
+    "number": "10123456",
+    "title": "Wireless power transfer with adaptive coil alignment",
+    "claims": [
+      "1. A wireless power transfer apparatus comprising a transmitter coil; a position sensor configured to detect a position of a receiver coil; and a controller configured to adjust a drive signal based on the detected position.",
+      "2. The apparatus of claim 1, wherein the position sensor comprises a plurality of magnetic field sensors."
+    ]
+  },
+  "expected_verdicts": [
+    {
+      "element_substring": "transmitter coil",
+      "expected": "MATCH",
+      "rationale": "transmitter coil appears directly in spec"
+    },
+    {
+      "element_substring": "position sensor",
+      "expected": "MATCH",
+      "rationale": "position sensor and receiver coil position both appear in spec"
+    },
+    {
+      "element_substring": "controller",
+      "expected": "MATCH",
+      "rationale": "controller, drive signal, and detected position all appear in spec"
+    }
+  ]
+}

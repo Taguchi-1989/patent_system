@@ -1,0 +1,76 @@
+# Continuous patent monitoring (M6).
+#
+# Runs the keyless monitoring pipeline on a schedule, persists snapshots back to
+# the repo (so Git history IS the monitoring audit trail — §7.1 "GitHub as the
+# single source of truth"), and uploads the diff report as an artifact.
+#
+# IMPORTANT — runtime choice: this runs on GitHub Actions, NOT Colab. Colab is
+# ephemeral (max ~12h, disconnects) and cannot host a scheduled black-box agent;
+# Actions cron is the correct substrate (see docs/architecture.md §1 Runtime).
+#
+# This scaffold monitors the committed SAMPLE export so the workflow is runnable
+# out of the box. To monitor REAL patents, change the "Run monitor" step:
+#   - keyless US full text:  --source bulk --bulk-files <downloaded weekly XML/ZIP>
+#   - BigQuery (needs a GCP service-account secret in CI):  --source bq ...
+#   - or point --export at a JSON you exported from the BigQuery console.
+
+name: patent-monitor
+
+on:
+  schedule:
+    # 06:00 UTC every Wednesday (USPTO grants publish Tuesdays).
+    - cron: "0 6 * * 3"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+permissions:
+  contents: write # required to commit updated snapshots back to the repo
+
+concurrency:
+  group: patent-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test gate (must pass before monitoring)
+        run: python -m pytest tests/ -q
+
+      - name: Run monitor (sample source — see header to swap for real data)
+        run: >
+          python scripts/monitor.py
+          --source bq-export
+          --export samples/bq_export_SAMPLE.json
+          --store monitor_state
+
+      - name: Upload diff report
+        uses: actions/upload-artifact@v4
+        with:
+          name: diff-report
+          path: outputs/diff_report.md
+          if-no-files-found: ignore
+
+      - name: Commit updated monitoring state
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add monitor_state
+          if git diff --cached --quiet; then
+            echo "No monitoring-state changes this run."
+          else
+            git commit -m "chore(monitor): update patent snapshots [skip ci]"
+            git push
+          fi

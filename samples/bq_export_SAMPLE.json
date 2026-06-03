@@ -1,0 +1,30 @@
+[
+  {
+    "publication_number": "US-10123456-B2",
+    "country_code": "US",
+    "kind_code": "B2",
+    "application_number": "US-201612345-A",
+    "publication_date": 20210914,
+    "filing_date": 20161101,
+    "grant_date": 20210914,
+    "family_id": "FAM-0001",
+    "title_localized": [{"text": "Wireless power transfer with adaptive coil alignment", "language": "en"}],
+    "abstract_localized": [{"text": "A wireless charging system that detects receiver coil position and adjusts the field to maximize coupling efficiency.", "language": "en"}],
+    "claims_localized": [{"text": "1. A wireless power transfer apparatus comprising a transmitter coil; a position sensor configured to detect a position of a receiver coil; and a controller configured to adjust a drive signal based on the detected position.\n2. The apparatus of claim 1, wherein the position sensor comprises a plurality of magnetic field sensors.\n3. The apparatus of claim 1, wherein the controller adjusts a frequency of the drive signal.", "language": "en"}],
+    "assignee_harmonized": [{"name": "Sample Wireless Corp.", "country_code": "US"}]
+  },
+  {
+    "publication_number": "EP-1234567-B1",
+    "country_code": "EP",
+    "kind_code": "B1",
+    "application_number": "EP-20100001-A",
+    "publication_date": 20200311,
+    "filing_date": 20100210,
+    "grant_date": 20200311,
+    "family_id": "FAM-0002",
+    "title_localized": [{"text": "Inductive charging device with coil position feedback", "language": "en"}],
+    "abstract_localized": [{"text": "An inductive charging device that determines relative coil alignment and regulates supplied power accordingly.", "language": "en"}],
+    "claims_localized": [{"text": "1. An inductive charging device comprising a primary coil; a feedback unit arranged to determine a relative alignment between the primary coil and a secondary coil; and a regulation unit configured to control supplied power based on the determined alignment.\n2. The device according to claim 1, wherein the feedback unit comprises an array of Hall-effect sensors.", "language": "en"}],
+    "assignee_harmonized": [{"name": "Sample Induktiv GmbH", "country_code": "DE"}]
+  }
+]

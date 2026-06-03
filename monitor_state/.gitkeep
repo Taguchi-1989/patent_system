@@ -1,0 +1,4 @@
+# Tracked monitoring state for CI (M6).
+# scripts/monitor.py --store monitor_state writes content-hashed snapshots here.
+# The patent-monitor workflow commits changes back, so Git history becomes the
+# monitoring audit trail. (Local runs default to cache/snapshots, which is ignored.)
