@@ -22,7 +22,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from patentkit.analyze import summarize                                    # noqa: E402
 from patentkit.analyze.compare import compare                              # noqa: E402
-from patentkit.analyze.score import score_all                             # noqa: E402
+from patentkit.analyze.score import build_channels, score_all             # noqa: E402
+from patentkit.analyze.llm_judge import make_azure_judge_from_env         # noqa: E402
 from patentkit.connectors import (                                         # noqa: E402
     BigQueryExportSource,
     BigQuerySource,
@@ -35,6 +36,21 @@ from patentkit.normalize import normalize                                  # noq
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DEFAULT_CSV = os.path.join(ROOT, "samples", "public_patent_numbers.csv")
 OUT_PATH = os.path.join(ROOT, "outputs", "report.md")
+
+
+def _build_score_channels(llm: str):
+    """Build the scoring channels. 'azure' plugs Azure OpenAI into the semantic
+    channel as the brain; 'none' (default) returns None = keyless LenientJudge."""
+    if llm == "azure":
+        judge = make_azure_judge_from_env()
+        if judge is None:
+            sys.exit(
+                "--llm azure requires AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY / "
+                "AZURE_OPENAI_DEPLOYMENT (set them in .env). See .env.example."
+            )
+        print(f"LLM channel: Azure OpenAI (deployment={judge.deployment})")
+        return build_channels(judge)
+    return None
 
 
 def build_source(args):
@@ -64,6 +80,9 @@ def main() -> int:
     p.add_argument("--bulk-files", nargs="+", help="USPTO bulk XML/ZIP file(s) (for --source bulk)")
     p.add_argument("--spec", help="path to target spec file (.md or .txt) for semantic comparison + FTO scoring")
     p.add_argument("--fixtures-dir", help="directory of fixture JSON (for --source fixture; e.g. samples/demo_fixtures)")
+    p.add_argument("--llm", choices=["none", "azure"], default="none",
+                   help="LLM brain for the semantic channel: 'azure' uses Azure OpenAI "
+                        "(env AZURE_OPENAI_*); 'none' = keyless LenientJudge (default)")
     args = p.parse_args()
 
     # 1. Ingestion
@@ -95,7 +114,8 @@ def main() -> int:
         with open(args.spec, encoding="utf-8") as sf:
             target_spec = sf.read()
         comparisons = [compare(target_spec, s) for s in summaries]
-        scores = score_all(target_spec, summaries)
+        channels = _build_score_channels(args.llm)
+        scores = score_all(target_spec, summaries, channels=channels)
 
     # 4. Presentation
     report = render_report(summaries, records, not_found,

@@ -33,7 +33,8 @@ if hasattr(sys.stdout, "reconfigure"):
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from patentkit.analyze import summarize                    # noqa: E402
-from patentkit.analyze.score import score_all              # noqa: E402
+from patentkit.analyze.score import build_channels, score_all  # noqa: E402
+from patentkit.analyze.llm_judge import make_azure_judge_from_env  # noqa: E402
 from patentkit.connectors import (                         # noqa: E402
     BigQueryExportSource,
     BigQuerySource,
@@ -48,6 +49,20 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 DEFAULT_CSV = os.path.join(ROOT, "samples", "public_patent_numbers.csv")
 DEFAULT_STORE = os.path.join(ROOT, "cache", "snapshots")
 SITE_DIR = os.path.join(ROOT, "site")
+
+
+def _build_score_channels(llm: str):
+    """'azure' plugs Azure OpenAI into the semantic channel; 'none' = keyless."""
+    if llm == "azure":
+        judge = make_azure_judge_from_env()
+        if judge is None:
+            sys.exit(
+                "--llm azure requires AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY / "
+                "AZURE_OPENAI_DEPLOYMENT (set them in .env). See .env.example."
+            )
+        print(f"LLM channel: Azure OpenAI (deployment={judge.deployment})")
+        return build_channels(judge)
+    return None
 
 
 def build_source(args):
@@ -106,6 +121,9 @@ def main() -> int:
                    help="path to target spec file (.md or .txt) for FTO triage scoring")
     p.add_argument("--fixtures-dir",
                    help="directory of fixture JSON (for --source fixture; e.g. samples/demo_fixtures)")
+    p.add_argument("--llm", choices=["none", "azure"], default="none",
+                   help="LLM brain for the semantic channel: 'azure' = Azure OpenAI "
+                        "(env AZURE_OPENAI_*); 'none' = keyless (default)")
     p.add_argument("--store", default=DEFAULT_STORE,
                    help="snapshot store directory for diff history (default: cache/snapshots)")
     args = p.parse_args()
@@ -139,7 +157,8 @@ def main() -> int:
     if args.spec:
         with open(args.spec, encoding="utf-8") as sf:
             target_spec = sf.read()
-        scores = score_all(target_spec, summaries)
+        channels = _build_score_channels(args.llm)
+        scores = score_all(target_spec, summaries, channels=channels)
         for s in scores:
             score_map[s.canonical] = s
 

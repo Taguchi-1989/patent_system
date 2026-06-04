@@ -415,9 +415,19 @@ def _decide_band(coverage: float, gap_count: int, n_elements: int) -> tuple[str,
 # エントリポイント
 # ===========================================================================
 
+def build_channels(llm_judge: Judge | None = None) -> dict[str, Judge]:
+    """2 チャネルを組み立てる。
+
+    strict = 決定論アンカー（HeuristicJudge・常に）。
+    recall = 意味チャネル。`llm_judge` を渡せば LLM（頭脳）、無ければ鍵不要の
+             LenientJudge。UI/出力の "LLM ch" 列はこの recall を表示する。
+    """
+    return {"strict": HeuristicJudge(), "recall": llm_judge or LenientJudge()}
+
+
 def default_channels() -> dict[str, Judge]:
-    """既定の 2 チャネル。strict=決定論アンカー、recall=LLM チャネルの差し替え地点。"""
-    return {"strict": HeuristicJudge(), "recall": LenientJudge()}
+    """既定（鍵不要）の 2 チャネル。strict=決定論アンカー、recall=LenientJudge。"""
+    return build_channels(None)
 
 
 def score_patent(

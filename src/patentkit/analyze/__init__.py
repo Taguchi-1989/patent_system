@@ -26,7 +26,10 @@ from .score import (
     score_patent,
     score_all,
     triage_sort_key,
+    build_channels,
+    default_channels,
 )
+from .llm_judge import AzureOpenAIJudge, make_azure_judge_from_env
 
 __all__ = [
     "ClaimBreakdown",
@@ -45,4 +48,8 @@ __all__ = [
     "score_patent",
     "score_all",
     "triage_sort_key",
+    "build_channels",
+    "default_channels",
+    "AzureOpenAIJudge",
+    "make_azure_judge_from_env",
 ]

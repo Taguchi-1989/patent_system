@@ -68,6 +68,24 @@ py -m http.server --directory site
 成果物：`site/index.html`（トリアージ一覧）→ 各特許の詳細（スコアパネル＋対比表＋提案）。
 Markdown（NotebookLM向け）が要るなら `py scripts/run_pipeline.py ...（同じ引数）` → `outputs/report.md`。
 
+### LLM（Azure OpenAI）を「頭脳」として使う（任意）
+
+意味チャネル（recall）は `Judge` プロトコルの差し替え地点。**APIキーをどこかに刺すのではなく、
+コード上のシーム**（[`analyze/llm_judge.py`](src/patentkit/analyze/llm_judge.py) の `AzureOpenAIJudge`）に
+Azure OpenAI を差し込む。決定論チャネル（strict）はアンカー兼ガードレールとして残るので、
+LLM が頭脳・決定論が安全網、という構成になる。
+
+```bash
+pip install -r requirements-llm.txt        # 任意依存（openai）。鍵不要の既定では不要
+# .env に AZURE_OPENAI_ENDPOINT / _API_KEY / _DEPLOYMENT を設定（.env.example 参照）
+py scripts/build_site.py samples/demo_numbers.csv --source fixture \
+   --fixtures-dir samples/demo_fixtures --spec samples/target_spec_SAMPLE.md --llm azure
+```
+
+**ハルシネーション対策はLLMでも維持**：モデルには「根拠は仕様からの逐語コピーのみ」を指示し、
+返ってきた引用が仕様の**実在の部分文字列でなければコード側で破棄**する（→ 根拠なきMATCHは
+構造的にUNCLEARへ降格）。未設定で `--llm azure` を指定すると、必要な環境変数を案内して停止する。
+
 ## 前提（重要な現実制約）
 
 - **APIキー/本人確認は取得できない前提**で設計。USPTO ODP（**ID.me本人確認**必須）・JPO API（**受付終了**）は使わない。
