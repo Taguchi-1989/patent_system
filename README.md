@@ -74,11 +74,15 @@ Markdown（NotebookLM向け）が要るなら `py scripts/run_pipeline.py ...（
 コード上のシーム**（[`analyze/llm_judge.py`](src/patentkit/analyze/llm_judge.py)）にLLMを差し込む。
 決定論チャネル（strict）はアンカー兼ガードレールとして常に残るので、**LLMが頭脳・決定論が安全網**。
 
+「頭脳」の動かし方は **APIで動かす（従量課金）** と **サブスクのエージェントで動かす（定額・鍵不要）**
+の2方向。詳しい使い分けは **[docs/llm-modes.md](docs/llm-modes.md)**。
+
 | モード | 鍵 | 使うもの | いつ |
 |---|---|---|---|
 | **鍵なし（既定）** | 不要 | 決定論 `HeuristicJudge` + `LenientJudge` | まず動かす・CI・デモ。`--llm` 省略でOK |
-| **鍵あり：Azure OpenAI** | `AZURE_OPENAI_*` | 決定論アンカー + Azure をLLMチャネル | 自前のAzureリソースがある |
-| **鍵あり：GitHub Models（Copilot/GitHubトークン）** | `GITHUB_MODELS_TOKEN`（または `GITHUB_TOKEN`） | 決定論アンカー + GitHub Models | GitHub/Copilotの鍵で手早く精度を上げたい |
+| **API：Azure OpenAI** | `AZURE_OPENAI_*` | 決定論アンカー + Azure | 自前のAzureリソース・無人/定期運用 |
+| **API：GitHub Models** | `GITHUB_MODELS_TOKEN`（または `GITHUB_TOKEN`） | 決定論アンカー + GitHub Models | GitHub/Copilotの鍵で手早く・Actionsで自動 |
+| **サブスクのエージェント** | 不要（Claude Code/Copilot のサブスク） | 決定論アンカー + `AgentJudge`（黒子が判定） | 対話レビュー・APIキーを持ちたくない |
 
 ```bash
 pip install -r requirements-llm.txt   # 鍵ありモードのみ必要（openai）。鍵なしでは不要
@@ -95,6 +99,11 @@ py scripts/build_site.py ...（同じ引数） --llm github
 
 # auto = 設定済みの鍵を自動で使い、無ければ鍵なしにフォールバック
 py scripts/build_site.py ...（同じ引数） --llm auto
+
+# サブスクのエージェント（Claude Code/Copilot）を頭脳に：鍵不要の3ステップ
+py scripts/run_pipeline.py ...（同じ引数） --emit-agent-worksheet work.json  # ①判定表を出力
+#   ② Claude Code 等に「work.json の各要素を判定して逐語根拠付きで埋めて」と依頼
+py scripts/build_site.py ...（同じ引数） --llm agent --verdicts work.json     # ③埋めた表で採点
 ```
 
 - **GitHub Models の鍵**：GitHub → Settings → Developer settings → Fine-grained PAT で

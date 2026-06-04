@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from patentkit.analyze import summarize                    # noqa: E402
 from patentkit.analyze.score import build_channels, score_all  # noqa: E402
 from patentkit.analyze.llm_judge import make_llm_judge_from_env  # noqa: E402
+from patentkit.analyze.agent_judge import make_agent_judge_from_file  # noqa: E402
 from patentkit.connectors import (                         # noqa: E402
     BigQueryExportSource,
     BigQuerySource,
@@ -53,10 +54,18 @@ DEFAULT_STORE = os.path.join(ROOT, "cache", "snapshots")
 SITE_DIR = os.path.join(ROOT, "site")
 
 
-def _build_score_channels(llm: str):
-    """LLM brain for the semantic channel: azure/github/auto, or 'none' = keyless."""
+def _build_score_channels(args):
+    """LLM brain: none/auto/azure/github (API) or agent (subscription agent worksheet)."""
+    llm = args.llm
     if llm in (None, "none"):
         return None
+    if llm == "agent":
+        if not args.verdicts or not os.path.isfile(args.verdicts):
+            sys.exit("--llm agent には記入済みの --verdicts <worksheet.json> が必要です"
+                     "（run_pipeline.py --emit-agent-worksheet で出力 → エージェントで記入）。")
+        judge = make_agent_judge_from_file(args.verdicts)
+        print(f"LLM channel: AgentJudge (subscription agent / verdicts={args.verdicts})")
+        return build_channels(judge)
     judge = make_llm_judge_from_env(provider=llm)
     if judge is None:
         if llm == "auto":
@@ -127,10 +136,12 @@ def main() -> int:
                    help="path to target spec file (.md or .txt) for FTO triage scoring")
     p.add_argument("--fixtures-dir",
                    help="directory of fixture JSON (for --source fixture; e.g. samples/demo_fixtures)")
-    p.add_argument("--llm", choices=["none", "auto", "azure", "github"], default="none",
-                   help="LLM brain for the semantic channel: 'azure' (AZURE_OPENAI_*), "
-                        "'github' (GitHub Models, GITHUB_MODELS_TOKEN/GITHUB_TOKEN), "
-                        "'auto' (whichever key is present, else keyless), 'none' (default)")
+    p.add_argument("--llm", choices=["none", "auto", "azure", "github", "agent"], default="none",
+                   help="semantic-channel brain: 'azure'/'github' = API, "
+                        "'agent' = subscription agent worksheet (--verdicts), "
+                        "'auto' = key if present else keyless, 'none' (default)")
+    p.add_argument("--verdicts",
+                   help="agent-filled worksheet JSON (for --llm agent)")
     p.add_argument("--store", default=DEFAULT_STORE,
                    help="snapshot store directory for diff history (default: cache/snapshots)")
     args = p.parse_args()
@@ -164,7 +175,7 @@ def main() -> int:
     if args.spec:
         with open(args.spec, encoding="utf-8") as sf:
             target_spec = sf.read()
-        channels = _build_score_channels(args.llm)
+        channels = _build_score_channels(args)
         scores = score_all(target_spec, summaries, channels=channels)
         for s in scores:
             score_map[s.canonical] = s

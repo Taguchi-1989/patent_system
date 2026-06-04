@@ -35,7 +35,7 @@ import json
 import os
 import re
 
-from .compare import ElementVerdict, Verdict
+from .compare import ElementVerdict, Verdict, coerce_verdict
 
 _DEFAULT_API_VERSION = "2024-10-21"
 _DEFAULT_MAX_SPEC_CHARS = 20000   # cost/context guard; validation still uses full spec
@@ -204,47 +204,9 @@ class OpenAICompatibleJudge:
                 needs_review=True,
             )
 
-        return self._verdict_from_payload(element, target_spec, _extract_json(content))
-
-    # -- response → ElementVerdict (with P-NO-GUESS validation) -----------
-    def _verdict_from_payload(self, element: str, target_spec: str, data: dict) -> ElementVerdict:
-        raw_verdict = str(data.get("verdict", "")).strip().upper()
-        verdict = {
-            "MATCH": Verdict.MATCH,
-            "MISSING": Verdict.MISSING,
-            "UNCLEAR": Verdict.UNCLEAR,
-        }.get(raw_verdict, Verdict.UNCLEAR)
-
-        try:
-            confidence = float(data.get("confidence", 0.0))
-        except (TypeError, ValueError):
-            confidence = 0.0
-        confidence = max(0.0, min(1.0, confidence))
-
-        evidence = str(data.get("evidence_span") or "")
-        # P-NO-GUESS: discard any quote that is not a verbatim substring of the spec.
-        fabricated = bool(evidence) and evidence not in target_spec
-        if fabricated:
-            evidence = ""
-
-        if verdict is Verdict.MISSING:
-            confidence = 1.0 if not evidence else confidence  # confident absence
-            evidence = ""
-
-        rationale = str(data.get("rationale") or "").strip()
-        prefix = "[LLM]"
-        if fabricated:
-            prefix += " [捏造引用を破棄: 仕様に逐語一致せず]"
-        rationale = f"{prefix} {rationale}".strip()
-
-        # __post_init__ demotes any MATCH that ended up without an evidence span.
-        return ElementVerdict(
-            element=element,
-            verdict=verdict,
-            evidence_span=evidence,
-            confidence=confidence,
-            rationale=rationale,
-        )
+        # P-NO-GUESS validation lives in compare.coerce_verdict (shared with the
+        # subscription-agent path), so every non-deterministic source is guarded identically.
+        return coerce_verdict(element, target_spec, _extract_json(content), label="LLM")
 
 
 class AzureOpenAIJudge(OpenAICompatibleJudge):

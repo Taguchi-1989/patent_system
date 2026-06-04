@@ -79,6 +79,65 @@ class ElementVerdict:
 
 
 # ---------------------------------------------------------------------------
+# coerce_verdict — build a validated ElementVerdict from a loose payload
+# ---------------------------------------------------------------------------
+
+def coerce_verdict(
+    element: str,
+    target_spec: str,
+    payload: dict | None,
+    label: str = "",
+) -> ElementVerdict:
+    """Turn a loosely-typed payload into an ElementVerdict, enforcing P-NO-GUESS.
+
+    The payload may come from ANY judgment source that is not the deterministic
+    HeuristicJudge — an LLM API (OpenAI/Azure/GitHub Models) OR a subscription
+    agent (Claude Code / Copilot) filling a worksheet. Wherever it comes from,
+    the SAME guard runs: any ``evidence_span`` that is not a verbatim substring
+    of ``target_spec`` is discarded, so a fabricated quote can never survive; an
+    ungrounded MATCH is then demoted to UNCLEAR in ElementVerdict.__post_init__.
+
+    Expected payload keys: verdict (MATCH/MISSING/UNCLEAR), evidence_span,
+    confidence (0-1), rationale.
+    """
+    data = payload or {}
+    raw = str(data.get("verdict", "")).strip().upper()
+    verdict = {
+        "MATCH": Verdict.MATCH,
+        "MISSING": Verdict.MISSING,
+        "UNCLEAR": Verdict.UNCLEAR,
+    }.get(raw, Verdict.UNCLEAR)
+
+    try:
+        confidence = float(data.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+
+    evidence = str(data.get("evidence_span") or "")
+    fabricated = bool(evidence) and evidence not in target_spec
+    if fabricated:
+        evidence = ""
+    if verdict is Verdict.MISSING:
+        confidence = 1.0 if not evidence else confidence
+        evidence = ""
+
+    rationale = str(data.get("rationale") or "").strip()
+    prefix = f"[{label}]" if label else ""
+    if fabricated:
+        prefix = (prefix + " " if prefix else "") + "[捏造引用を破棄: 仕様に逐語一致せず]"
+    rationale = f"{prefix} {rationale}".strip()
+
+    return ElementVerdict(
+        element=element,
+        verdict=verdict,
+        evidence_span=evidence,
+        confidence=confidence,
+        rationale=rationale,
+    )
+
+
+# ---------------------------------------------------------------------------
 # ComparisonResult
 # ---------------------------------------------------------------------------
 
