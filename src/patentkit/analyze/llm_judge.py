@@ -110,36 +110,77 @@ def _extract_json(text: str) -> dict:
     return {}
 
 
-class AzureOpenAIJudge:
-    """LLM-backed Judge (Azure OpenAI) implementing the Judge protocol.
+# GitHub Models (OpenAI-compatible) — works with a GitHub token (PAT with
+# models:read), which GitHub Copilot subscribers / GitHub users already have.
+_GITHUB_MODELS_ENDPOINT = "https://models.github.ai/inference"
+_DEFAULT_GH_MODEL = "openai/gpt-4o-mini"
 
-    Drop-in for the score.py "recall"/semantic channel. P-NO-GUESS is enforced
-    here in code (verbatim-substring validation) AND structurally in
-    ElementVerdict.__post_init__.
+
+def _maybe_dotenv(load: bool) -> None:
+    if not load:
+        return
+    try:
+        from dotenv import load_dotenv as _ld
+        _ld()
+    except Exception:
+        pass
+
+
+def _make_openai_client(base_url: str, api_key: str):
+    """Construct a base openai.OpenAI client pointed at any OpenAI-compatible API."""
+    try:
+        from openai import OpenAI
+    except ImportError as exc:  # pragma: no cover - exercised only without openai
+        raise RuntimeError(
+            "This LLM channel requires the 'openai' package. "
+            "Install it: pip install -r requirements-llm.txt"
+        ) from exc
+    return OpenAI(base_url=base_url, api_key=api_key)
+
+
+class OpenAICompatibleJudge:
+    """LLM-backed Judge over ANY OpenAI-compatible chat API.
+
+    One implementation serves Azure OpenAI, GitHub Models (Copilot token), and
+    vanilla OpenAI — only client construction differs (see subclasses/factories).
+    Implements the Judge protocol; drop-in for score.py's "recall" channel.
+
+    P-NO-GUESS is enforced here in code (verbatim-substring validation) AND
+    structurally in ElementVerdict.__post_init__, so even a hallucinating model
+    cannot emit an ungrounded MATCH.
     """
 
     def __init__(
         self,
         *,
-        deployment: str,
-        client=None,
-        endpoint: str | None = None,
-        api_key: str | None = None,
-        api_version: str = _DEFAULT_API_VERSION,
+        client,
+        model: str,
+        json_mode: bool = True,
         temperature: float = 0.0,
         max_spec_chars: int = _DEFAULT_MAX_SPEC_CHARS,
     ) -> None:
-        self.deployment = deployment
+        self._client = client
+        self.model = model
+        self.json_mode = json_mode
         self.temperature = temperature
         self.max_spec_chars = max_spec_chars
-        if client is not None:
-            self._client = client            # injected (tests / custom)
-        else:
-            if not (endpoint and api_key):
-                raise ValueError(
-                    "AzureOpenAIJudge needs endpoint+api_key (or an injected client)."
-                )
-            self._client = _make_azure_client(endpoint, api_key, api_version)
+
+    # -- one chat call, tolerant of providers without JSON mode ----------
+    def _create(self, messages):
+        base = dict(model=self.model, temperature=self.temperature, messages=messages)
+        if not self.json_mode:
+            return self._client.chat.completions.create(**base)
+        try:
+            return self._client.chat.completions.create(
+                response_format={"type": "json_object"}, **base
+            )
+        except Exception as exc:
+            s = str(exc).lower()
+            # Some providers/models reject response_format — retry plain (the
+            # prompt already demands JSON and _extract_json tolerates prose).
+            if "response_format" in s or "json" in s or "not support" in s:
+                return self._client.chat.completions.create(**base)
+            raise
 
     # -- protocol --------------------------------------------------------
     def judge(self, element: str, target_spec: str, claim_context: str) -> ElementVerdict:
@@ -150,21 +191,16 @@ class AzureOpenAIJudge:
             spec=spec_for_model,
         )
         try:
-            resp = self._client.chat.completions.create(
-                model=self.deployment,
-                temperature=self.temperature,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-            )
+            resp = self._create([
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ])
             content = resp.choices[0].message.content
         except Exception as exc:  # network/parse/etc — never fabricate, escalate.
             return ElementVerdict(
                 element=element, verdict=Verdict.UNCLEAR, evidence_span="",
                 confidence=0.0,
-                rationale=f"[LLM:azure error] {type(exc).__name__}: {exc}",
+                rationale=f"[LLM error] {type(exc).__name__}: {exc}",
                 needs_review=True,
             )
 
@@ -196,7 +232,7 @@ class AzureOpenAIJudge:
             evidence = ""
 
         rationale = str(data.get("rationale") or "").strip()
-        prefix = "[LLM:azure]"
+        prefix = "[LLM]"
         if fabricated:
             prefix += " [捏造引用を破棄: 仕様に逐語一致せず]"
         rationale = f"{prefix} {rationale}".strip()
@@ -211,31 +247,107 @@ class AzureOpenAIJudge:
         )
 
 
-def make_azure_judge_from_env(load_dotenv: bool = True) -> AzureOpenAIJudge | None:
-    """Build an AzureOpenAIJudge from environment variables.
+class AzureOpenAIJudge(OpenAICompatibleJudge):
+    """OpenAICompatibleJudge backed by Azure OpenAI. `deployment` == model."""
 
-    Returns None if Azure is not configured (so callers can fall back to the
-    keyless LenientJudge gracefully). Raises only if openai is missing AND
-    config is present (i.e. the user clearly intended to use it).
+    def __init__(
+        self,
+        *,
+        deployment: str,
+        client=None,
+        endpoint: str | None = None,
+        api_key: str | None = None,
+        api_version: str = _DEFAULT_API_VERSION,
+        **kw,
+    ) -> None:
+        if client is None:
+            if not (endpoint and api_key):
+                raise ValueError(
+                    "AzureOpenAIJudge needs endpoint+api_key (or an injected client)."
+                )
+            client = _make_azure_client(endpoint, api_key, api_version)
+        super().__init__(client=client, model=deployment, **kw)
+
+    @property
+    def deployment(self) -> str:   # back-compat alias
+        return self.model
+
+
+class GitHubModelsJudge(OpenAICompatibleJudge):
+    """OpenAICompatibleJudge backed by GitHub Models (OpenAI-compatible).
+
+    Auth is a GitHub token (fine-grained PAT with models:read, or the Actions
+    GITHUB_TOKEN granted `models: read`). This is the "GitHub / Copilot" path.
     """
-    if load_dotenv:
-        try:
-            from dotenv import load_dotenv as _ld
-            _ld()
-        except Exception:
-            pass
 
+    def __init__(
+        self,
+        *,
+        model: str = _DEFAULT_GH_MODEL,
+        token: str | None = None,
+        base_url: str = _GITHUB_MODELS_ENDPOINT,
+        client=None,
+        **kw,
+    ) -> None:
+        if client is None:
+            if not token:
+                raise ValueError("GitHubModelsJudge needs a token (or an injected client).")
+            client = _make_openai_client(base_url, token)
+        super().__init__(client=client, model=model, **kw)
+
+
+# ---------------------------------------------------------------------------
+# Env-driven factories — return None when unconfigured (graceful keyless fallback)
+# ---------------------------------------------------------------------------
+
+def make_azure_judge_from_env(load_dotenv: bool = True) -> AzureOpenAIJudge | None:
+    """Build an AzureOpenAIJudge from AZURE_OPENAI_* env. None if unconfigured."""
+    _maybe_dotenv(load_dotenv)
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip()
     api_key = os.environ.get("AZURE_OPENAI_API_KEY", "").strip()
     deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "").strip()
     api_version = os.environ.get("AZURE_OPENAI_API_VERSION", _DEFAULT_API_VERSION).strip()
-
     if not (endpoint and api_key and deployment):
         return None
-
     return AzureOpenAIJudge(
-        deployment=deployment,
-        endpoint=endpoint,
-        api_key=api_key,
-        api_version=api_version,
+        deployment=deployment, endpoint=endpoint, api_key=api_key, api_version=api_version,
     )
+
+
+def make_github_models_judge_from_env(load_dotenv: bool = True) -> GitHubModelsJudge | None:
+    """Build a GitHubModelsJudge from a GitHub token. None if no token present.
+
+    Token resolution: GITHUB_MODELS_TOKEN, else GITHUB_TOKEN (Actions default).
+    Model: GITHUB_MODELS_MODEL (default openai/gpt-4o-mini). Endpoint override:
+    GITHUB_MODELS_ENDPOINT.
+    """
+    _maybe_dotenv(load_dotenv)
+    token = (os.environ.get("GITHUB_MODELS_TOKEN")
+             or os.environ.get("GITHUB_TOKEN") or "").strip()
+    if not token:
+        return None
+    model = os.environ.get("GITHUB_MODELS_MODEL", _DEFAULT_GH_MODEL).strip() or _DEFAULT_GH_MODEL
+    base_url = os.environ.get("GITHUB_MODELS_ENDPOINT", _GITHUB_MODELS_ENDPOINT).strip() or _GITHUB_MODELS_ENDPOINT
+    return GitHubModelsJudge(model=model, token=token, base_url=base_url)
+
+
+def make_llm_judge_from_env(provider: str = "auto", load_dotenv: bool = True):
+    """Dispatch to a provider factory by name. Returns a Judge or None.
+
+    provider:
+      "none"          → None (keyless)
+      "azure"         → Azure OpenAI (AZURE_OPENAI_*)
+      "github"/"copilot" → GitHub Models (GITHUB_MODELS_TOKEN / GITHUB_TOKEN)
+      "auto"          → Azure if configured, else GitHub, else None
+    """
+    p = (provider or "auto").lower()
+    if p in ("none", "off", ""):
+        return None
+    if p in ("azure", "azure-openai", "aoai"):
+        return make_azure_judge_from_env(load_dotenv)
+    if p in ("github", "github-models", "gh", "copilot"):
+        return make_github_models_judge_from_env(load_dotenv)
+    if p == "auto":
+        return (make_azure_judge_from_env(load_dotenv)
+                or make_github_models_judge_from_env(load_dotenv))
+    return None

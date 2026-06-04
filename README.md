@@ -68,23 +68,42 @@ py -m http.server --directory site
 成果物：`site/index.html`（トリアージ一覧）→ 各特許の詳細（スコアパネル＋対比表＋提案）。
 Markdown（NotebookLM向け）が要るなら `py scripts/run_pipeline.py ...（同じ引数）` → `outputs/report.md`。
 
-### LLM（Azure OpenAI）を「頭脳」として使う（任意）
+### 鍵を入れる / 入れない（2モード）
 
 意味チャネル（recall）は `Judge` プロトコルの差し替え地点。**APIキーをどこかに刺すのではなく、
-コード上のシーム**（[`analyze/llm_judge.py`](src/patentkit/analyze/llm_judge.py) の `AzureOpenAIJudge`）に
-Azure OpenAI を差し込む。決定論チャネル（strict）はアンカー兼ガードレールとして残るので、
-LLM が頭脳・決定論が安全網、という構成になる。
+コード上のシーム**（[`analyze/llm_judge.py`](src/patentkit/analyze/llm_judge.py)）にLLMを差し込む。
+決定論チャネル（strict）はアンカー兼ガードレールとして常に残るので、**LLMが頭脳・決定論が安全網**。
+
+| モード | 鍵 | 使うもの | いつ |
+|---|---|---|---|
+| **鍵なし（既定）** | 不要 | 決定論 `HeuristicJudge` + `LenientJudge` | まず動かす・CI・デモ。`--llm` 省略でOK |
+| **鍵あり：Azure OpenAI** | `AZURE_OPENAI_*` | 決定論アンカー + Azure をLLMチャネル | 自前のAzureリソースがある |
+| **鍵あり：GitHub Models（Copilot/GitHubトークン）** | `GITHUB_MODELS_TOKEN`（または `GITHUB_TOKEN`） | 決定論アンカー + GitHub Models | GitHub/Copilotの鍵で手早く精度を上げたい |
 
 ```bash
-pip install -r requirements-llm.txt        # 任意依存（openai）。鍵不要の既定では不要
-# .env に AZURE_OPENAI_ENDPOINT / _API_KEY / _DEPLOYMENT を設定（.env.example 参照）
+pip install -r requirements-llm.txt   # 鍵ありモードのみ必要（openai）。鍵なしでは不要
+
+# 鍵なし（既定・そのまま動く）
 py scripts/build_site.py samples/demo_numbers.csv --source fixture \
-   --fixtures-dir samples/demo_fixtures --spec samples/target_spec_SAMPLE.md --llm azure
+   --fixtures-dir samples/demo_fixtures --spec samples/target_spec_SAMPLE.md
+
+# Azure OpenAI を頭脳に（.env に AZURE_OPENAI_* を設定）
+py scripts/build_site.py ...（同じ引数） --llm azure
+
+# GitHub Models を頭脳に（.env に GITHUB_MODELS_TOKEN、無ければ GITHUB_TOKEN）
+py scripts/build_site.py ...（同じ引数） --llm github
+
+# auto = 設定済みの鍵を自動で使い、無ければ鍵なしにフォールバック
+py scripts/build_site.py ...（同じ引数） --llm auto
 ```
 
-**ハルシネーション対策はLLMでも維持**：モデルには「根拠は仕様からの逐語コピーのみ」を指示し、
-返ってきた引用が仕様の**実在の部分文字列でなければコード側で破棄**する（→ 根拠なきMATCHは
-構造的にUNCLEARへ降格）。未設定で `--llm azure` を指定すると、必要な環境変数を案内して停止する。
+- **GitHub Models の鍵**：GitHub → Settings → Developer settings → Fine-grained PAT で
+  **`models:read`** 権限を付けたトークンを `GITHUB_MODELS_TOKEN` に。GitHub Actions 内なら
+  ワークフローに `permissions: models: read` を付けるだけで組み込みの `GITHUB_TOKEN` が使われる。
+- **ハルシネーション対策はLLMでも維持**：モデルには「根拠は仕様からの逐語コピーのみ」を指示し、
+  返ってきた引用が仕様の**実在の部分文字列でなければコード側で破棄**（→ 根拠なきMATCHは構造的にUNCLEARへ降格）。
+- 鍵が無いのに `--llm azure|github` を指定すると、必要な環境変数を案内して停止する。
+- 詳しい設定手順は **[docs/llm-setup.md](docs/llm-setup.md)**、変数の雛形は [.env.example](.env.example)。
 
 ## 前提（重要な現実制約）
 

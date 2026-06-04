@@ -29,7 +29,14 @@ from .score import (
     build_channels,
     default_channels,
 )
-from .llm_judge import AzureOpenAIJudge, make_azure_judge_from_env
+from .llm_judge import (
+    OpenAICompatibleJudge,
+    AzureOpenAIJudge,
+    GitHubModelsJudge,
+    make_azure_judge_from_env,
+    make_github_models_judge_from_env,
+    make_llm_judge_from_env,
+)
 
 __all__ = [
     "ClaimBreakdown",
@@ -50,6 +57,10 @@ __all__ = [
     "triage_sort_key",
     "build_channels",
     "default_channels",
+    "OpenAICompatibleJudge",
     "AzureOpenAIJudge",
+    "GitHubModelsJudge",
     "make_azure_judge_from_env",
+    "make_github_models_judge_from_env",
+    "make_llm_judge_from_env",
 ]

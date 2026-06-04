@@ -24,7 +24,10 @@ if hasattr(sys.stdout, "reconfigure"):
 from patentkit.analyze.compare import Verdict                       # noqa: E402
 from patentkit.analyze.llm_judge import (                           # noqa: E402
     AzureOpenAIJudge,
+    GitHubModelsJudge,
     make_azure_judge_from_env,
+    make_github_models_judge_from_env,
+    make_llm_judge_from_env,
 )
 from patentkit.analyze.score import build_channels, score_patent    # noqa: E402
 from patentkit.analyze.summarize import ClaimBreakdown, PatentSummary  # noqa: E402
@@ -126,6 +129,67 @@ def test_make_from_env_returns_none_when_unconfigured(monkeypatch):
     for k in ("AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_DEPLOYMENT"):
         monkeypatch.delenv(k, raising=False)
     assert make_azure_judge_from_env(load_dotenv=False) is None
+
+
+def test_github_judge_with_injected_client():
+    """GitHub Models path: same logic, OpenAI-compatible client injected."""
+    judge = GitHubModelsJudge(
+        model="openai/gpt-4o-mini",
+        client=FakeClient([json.dumps({
+            "verdict": "MATCH",
+            "evidence_span": "a transmitter coil operating at resonance",
+            "confidence": 0.88, "rationale": "ok",
+        })]),
+    )
+    v = judge.judge("a transmitter coil", SPEC, "")
+    assert v.verdict is Verdict.MATCH
+    assert v.evidence_span in SPEC
+    assert judge.model == "openai/gpt-4o-mini"
+
+
+def test_github_from_env_none_without_token(monkeypatch):
+    monkeypatch.delenv("GITHUB_MODELS_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    assert make_github_models_judge_from_env(load_dotenv=False) is None
+
+
+def test_provider_dispatch_none_and_unconfigured(monkeypatch):
+    for k in ("AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_DEPLOYMENT",
+              "GITHUB_MODELS_TOKEN", "GITHUB_TOKEN"):
+        monkeypatch.delenv(k, raising=False)
+    assert make_llm_judge_from_env("none", load_dotenv=False) is None
+    assert make_llm_judge_from_env("auto", load_dotenv=False) is None
+    assert make_llm_judge_from_env("azure", load_dotenv=False) is None
+    assert make_llm_judge_from_env("github", load_dotenv=False) is None
+
+
+def test_json_mode_retry_when_provider_rejects_response_format():
+    """If a provider rejects response_format, _create() retries without it."""
+    payload = json.dumps({
+        "verdict": "MATCH",
+        "evidence_span": "a transmitter coil operating at resonance",
+        "confidence": 0.8, "rationale": "ok",
+    })
+
+    class _PickyCompletions:
+        def __init__(self): self.calls = 0
+        def create(self, **kwargs):
+            self.calls += 1
+            if "response_format" in kwargs:
+                raise TypeError("this model does not support response_format")
+            return _Resp(payload)
+
+    class _PickyChat:
+        def __init__(self): self.completions = _PickyCompletions()
+
+    class _PickyClient:
+        def __init__(self): self.chat = _PickyChat()
+
+    client = _PickyClient()
+    judge = GitHubModelsJudge(model="openai/gpt-4o-mini", client=client)
+    v = judge.judge("a transmitter coil", SPEC, "")
+    assert v.verdict is Verdict.MATCH
+    assert client.chat.completions.calls == 2     # first w/ json mode failed, retried plain
 
 
 def test_plugs_into_scoring_channels():

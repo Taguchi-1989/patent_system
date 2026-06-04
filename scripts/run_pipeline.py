@@ -17,13 +17,15 @@ import sys
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")   # so Japanese sys.exit() messages aren't mojibake
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from patentkit.analyze import summarize                                    # noqa: E402
 from patentkit.analyze.compare import compare                              # noqa: E402
 from patentkit.analyze.score import build_channels, score_all             # noqa: E402
-from patentkit.analyze.llm_judge import make_azure_judge_from_env         # noqa: E402
+from patentkit.analyze.llm_judge import make_llm_judge_from_env           # noqa: E402
 from patentkit.connectors import (                                         # noqa: E402
     BigQueryExportSource,
     BigQuerySource,
@@ -39,18 +41,23 @@ OUT_PATH = os.path.join(ROOT, "outputs", "report.md")
 
 
 def _build_score_channels(llm: str):
-    """Build the scoring channels. 'azure' plugs Azure OpenAI into the semantic
-    channel as the brain; 'none' (default) returns None = keyless LenientJudge."""
-    if llm == "azure":
-        judge = make_azure_judge_from_env()
-        if judge is None:
-            sys.exit(
-                "--llm azure requires AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY / "
-                "AZURE_OPENAI_DEPLOYMENT (set them in .env). See .env.example."
-            )
-        print(f"LLM channel: Azure OpenAI (deployment={judge.deployment})")
-        return build_channels(judge)
-    return None
+    """Build the scoring channels. The LLM (azure/github) plugs into the semantic
+    channel as the brain; 'none' = keyless LenientJudge; 'auto' = use whatever
+    key is present, else keyless."""
+    if llm in (None, "none"):
+        return None
+    judge = make_llm_judge_from_env(provider=llm)
+    if judge is None:
+        if llm == "auto":
+            print("LLM: 鍵が無いためキーレス(LenientJudge)で実行します。")
+            return None
+        sys.exit(
+            f"--llm {llm} の鍵が見つかりません。.env に必要な環境変数を設定してください"
+            " (Azure: AZURE_OPENAI_*, GitHub: GITHUB_MODELS_TOKEN or GITHUB_TOKEN)。"
+            " 詳細は .env.example / README を参照。"
+        )
+    print(f"LLM channel: {type(judge).__name__} (model={judge.model})")
+    return build_channels(judge)
 
 
 def build_source(args):
@@ -80,9 +87,11 @@ def main() -> int:
     p.add_argument("--bulk-files", nargs="+", help="USPTO bulk XML/ZIP file(s) (for --source bulk)")
     p.add_argument("--spec", help="path to target spec file (.md or .txt) for semantic comparison + FTO scoring")
     p.add_argument("--fixtures-dir", help="directory of fixture JSON (for --source fixture; e.g. samples/demo_fixtures)")
-    p.add_argument("--llm", choices=["none", "azure"], default="none",
-                   help="LLM brain for the semantic channel: 'azure' uses Azure OpenAI "
-                        "(env AZURE_OPENAI_*); 'none' = keyless LenientJudge (default)")
+    p.add_argument("--llm", choices=["none", "auto", "azure", "github"], default="none",
+                   help="LLM brain for the semantic channel: 'azure' (AZURE_OPENAI_*), "
+                        "'github' (GitHub Models, GITHUB_MODELS_TOKEN/GITHUB_TOKEN), "
+                        "'auto' (whichever key is present, else keyless), "
+                        "'none' = keyless LenientJudge (default)")
     args = p.parse_args()
 
     # 1. Ingestion
