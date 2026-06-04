@@ -33,7 +33,7 @@ if hasattr(sys.stdout, "reconfigure"):
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from patentkit.analyze import summarize                    # noqa: E402
-from patentkit.analyze.compare import compare              # noqa: E402
+from patentkit.analyze.score import score_all              # noqa: E402
 from patentkit.connectors import (                         # noqa: E402
     BigQueryExportSource,
     BigQuerySource,
@@ -53,6 +53,8 @@ SITE_DIR = os.path.join(ROOT, "site")
 def build_source(args):
     """Construct a PatentSource from parsed CLI arguments (mirrors run_pipeline.py)."""
     if args.source == "fixture":
+        if getattr(args, "fixtures_dir", None):
+            return FixtureSource(directory=args.fixtures_dir)
         return FixtureSource()
     if args.source == "bq-export":
         if not args.export:
@@ -101,7 +103,9 @@ def main() -> int:
     p.add_argument("--project",
                    help="GCP project id (for --source bq)")
     p.add_argument("--spec",
-                   help="path to target spec file (.md or .txt) for semantic comparison")
+                   help="path to target spec file (.md or .txt) for FTO triage scoring")
+    p.add_argument("--fixtures-dir",
+                   help="directory of fixture JSON (for --source fixture; e.g. samples/demo_fixtures)")
     p.add_argument("--store", default=DEFAULT_STORE,
                    help="snapshot store directory for diff history (default: cache/snapshots)")
     args = p.parse_args()
@@ -126,18 +130,18 @@ def main() -> int:
         records.append(rec)
         summaries.append(summarize(rec))
 
-    # 3. Semantic comparison (only when --spec is provided)
-    comparisons = None
+    # 3. FTO triage scoring (only when --spec is provided).
+    #    The score (decision×LLM fusion) supersedes the legacy MATCH/MISSING table
+    #    as the headline view, so the demo passes scores — not comparisons — to the
+    #    renderers. compare() stays imported for callers that still want it.
+    scores = None
+    score_map: dict[str, object] = {}
     if args.spec:
         with open(args.spec, encoding="utf-8") as sf:
             target_spec = sf.read()
-        comparisons = [compare(target_spec, s) for s in summaries]
-
-    # Build a comparison lookup by canonical.
-    comparison_map: dict[str, object] = {}
-    if comparisons:
-        for c in comparisons:
-            comparison_map[c.patent_canonical] = c
+        scores = score_all(target_spec, summaries)
+        for s in scores:
+            score_map[s.canonical] = s
 
     # 4. Diff history (gracefully skip if store doesn't exist or no snapshots).
     store_exists = os.path.isdir(args.store)
@@ -154,10 +158,10 @@ def main() -> int:
     detail_pages_written = 0
     for rec, summary in zip(records, summaries):
         canonical = rec.canonical
-        comp = comparison_map.get(canonical) if comparison_map else None
+        sc = score_map.get(canonical) if score_map else None
         history = _build_history(store, canonical) if store else None
 
-        html_content = render_detail(rec, summary, comparison=comp, history=history)
+        html_content = render_detail(rec, summary, history=history, score=sc)
 
         safe_fn = _safe_filename(canonical)
         out_path = os.path.join(patents_dir, f"{safe_fn}.html")
@@ -166,7 +170,7 @@ def main() -> int:
         detail_pages_written += 1
 
     # 5b. Index page
-    index_html = render_index(records, summaries, comparisons=comparisons)
+    index_html = render_index(records, summaries, scores=scores)
     index_path = os.path.join(SITE_DIR, "index.html")
     with open(index_path, "w", encoding="utf-8") as f:
         f.write(index_html)

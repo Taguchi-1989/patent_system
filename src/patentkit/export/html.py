@@ -16,6 +16,7 @@ Both pages include the DISCLAIMER footer (imported from export.markdown).
 from __future__ import annotations
 
 import html
+import re
 from typing import TYPE_CHECKING
 
 from .markdown import DISCLAIMER
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     from ..connectors.base import PatentRecord
     from ..analyze.summarize import PatentSummary
     from ..analyze.compare import ComparisonResult
+    from ..analyze.score import PatentScore
     from ..state.diff import RecordDiff
 
 # ---------------------------------------------------------------------------
@@ -628,8 +630,197 @@ td.verdict-UNCLEAR { background: rgba(246,204,91,.12);  }
 }
 .disclaimer strong { color: var(--ink-mid); }
 
+/* ============================================================== triage / FTO score */
+/* HIGH = 抵触リスク高 = 赤(missing palette) / MEDIUM = 琥珀(unclear) / LOW = 緑(match) */
+
+/* index: triage summary banner */
+.triage-summary {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  margin: 4px 0 20px;
+}
+.triage-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 15px; border-radius: 100px;
+  font-size: .82em; font-weight: 700; letter-spacing: .02em;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.triage-chip__n { font-size: 1.25em; font-weight: 800; font-variant-numeric: tabular-nums; }
+.triage-chip--HIGH   { background: var(--missing-bg); color: var(--missing-fg); border-color: var(--missing-border); }
+.triage-chip--MEDIUM { background: var(--unclear-bg); color: var(--unclear-fg); border-color: var(--unclear-border); }
+.triage-chip--LOW    { background: var(--match-bg);   color: var(--match-fg);   border-color: var(--match-border); }
+.triage-chip--REVIEW { background: #fff3e0; color: #8a5a00; border-color: #f0c674; }
+.triage-chip--TOTAL  { background: var(--surface); color: var(--ink-mid); border-color: var(--border-md); }
+.triage-hint { font-size: .78em; color: var(--ink-muted); margin: -8px 0 18px; }
+
+/* index: risk score cell */
+.risk-cell { min-width: 180px; }
+.risk-head { display: flex; align-items: baseline; gap: 8px; }
+.risk-pct {
+  font-size: 1.2em; font-weight: 800; font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.risk-pct--HIGH   { color: var(--missing-fg); }
+.risk-pct--MEDIUM { color: #b07500; }
+.risk-pct--LOW    { color: var(--match-fg); }
+.risk-pct--UNKNOWN{ color: var(--ink-muted); }
+.score-track {
+  position: relative; height: 9px; border-radius: 100px;
+  background: var(--border); overflow: hidden; margin: 6px 0 4px;
+}
+.score-band {
+  position: absolute; top: 0; height: 100%;
+  background: rgba(26,30,36,.13);
+}
+.score-fill {
+  position: absolute; left: 0; top: 0; height: 100%; border-radius: 100px;
+}
+.score-fill--HIGH   { background: var(--missing-fg); }
+.score-fill--MEDIUM { background: #e6a817; }
+.score-fill--LOW    { background: var(--match-fg); }
+.score-fill--UNKNOWN{ background: var(--ink-muted); }
+.band-pill {
+  display: inline-block; font-size: .7em; font-weight: 800; letter-spacing: .06em;
+  padding: 1px 9px; border-radius: 100px; border: 1px solid transparent;
+}
+.band-pill--HIGH   { background: var(--missing-bg); color: var(--missing-fg); border-color: var(--missing-border); }
+.band-pill--MEDIUM { background: var(--unclear-bg); color: var(--unclear-fg); border-color: var(--unclear-border); }
+.band-pill--LOW    { background: var(--match-bg);   color: var(--match-fg);   border-color: var(--match-border); }
+.band-pill--UNKNOWN{ background: var(--paper); color: var(--ink-muted); border-color: var(--border-md); }
+.risk-meta { font-size: .74em; color: var(--ink-muted); margin-top: 2px; }
+.risk-meta .risk-review { color: #9a6a00; font-weight: 700; }
+
+/* index: sortable header affordance */
+.index-table th.sortable { cursor: pointer; user-select: none; }
+.index-table th.sortable:hover { color: var(--accent); }
+.index-table th.sortable::after { content: " ⇅"; font-size: .8em; color: var(--ink-muted); }
+
+/* detail: score panel */
+.score-panel {
+  display: grid; grid-template-columns: 200px 1fr; gap: 26px; align-items: center;
+  background: var(--surface); border: 1px solid var(--border); border-left-width: 5px;
+  border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  padding: 24px 30px; margin: 8px 0 4px;
+}
+.score-panel--HIGH   { border-left-color: var(--missing-fg); }
+.score-panel--MEDIUM { border-left-color: #e6a817; }
+.score-panel--LOW    { border-left-color: var(--match-fg); }
+.score-panel--UNKNOWN{ border-left-color: var(--ink-muted); }
+.score-dial { text-align: center; }
+.score-dial__pct { font-size: 3.4em; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.score-dial__pct--HIGH   { color: var(--missing-fg); }
+.score-dial__pct--MEDIUM { color: #b07500; }
+.score-dial__pct--LOW    { color: var(--match-fg); }
+.score-dial__pct--UNKNOWN{ color: var(--ink-muted); }
+.score-dial__cap { font-size: .72em; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); margin-top: 4px; }
+.score-dial__band { display: inline-block; margin-top: 10px; font-size: .95em; font-weight: 800; padding: 4px 14px; }
+.score-right { min-width: 0; }
+.score-rationale { font-size: .92em; color: var(--ink); margin-bottom: 14px; line-height: 1.55; }
+.score-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.score-fact {
+  background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+.score-fact__k { font-size: .68em; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-muted); }
+.score-fact__v { font-size: 1.05em; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.score-conf-track {
+  position: relative; height: 22px; border-radius: var(--radius-sm);
+  background: var(--border); overflow: hidden; margin-top: 4px;
+}
+.score-conf-band { position: absolute; top: 0; height: 100%; background: rgba(26,30,36,.14); }
+.score-conf-fill { position: absolute; left: 0; top: 0; height: 100%; opacity: .55; }
+.score-conf-pt {
+  position: absolute; top: -2px; height: 26px; width: 2px; background: var(--ink);
+}
+.score-conf-label {
+  position: absolute; top: 50%; transform: translateY(-50%); left: 8px;
+  font-size: .72em; font-weight: 700; color: var(--ink);
+}
+
+/* detail: per-element coverage table (dual channel) */
+.cov-bar-wrap { display: flex; align-items: center; gap: 8px; }
+.cov-track { flex: 1; min-width: 60px; height: 7px; border-radius: 100px; background: var(--border); overflow: hidden; }
+.cov-fill { display: block; height: 100%; border-radius: 100px; }
+.cov-fill--covered { background: var(--match-fg); }
+.cov-fill--partial { background: #e6a817; }
+.cov-fill--gap     { background: var(--missing-fg); }
+.cov-num { font-size: .8em; font-variant-numeric: tabular-nums; color: var(--ink-mid); min-width: 34px; text-align: right; }
+.chan-chip {
+  display: inline-block; font-size: .74em; font-variant-numeric: tabular-nums;
+  color: var(--ink-mid); background: var(--paper); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 1px 6px;
+}
+.sn-chip {
+  display: inline-block; font-size: .74em; font-weight: 700; font-variant-numeric: tabular-nums;
+  padding: 1px 7px; border-radius: 100px; border: 1px solid transparent;
+}
+.sn-chip--ok   { background: var(--match-bg); color: var(--match-fg); border-color: var(--match-border); }
+.sn-chip--warn { background: var(--unclear-bg); color: var(--unclear-fg); border-color: var(--unclear-border); }
+
+/* detail: claim chart (対比表) — claim element ↔ verbatim spec passage */
+.claimchart { width: 100%; border-collapse: collapse; font-size: .86em; margin-top: 18px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; box-shadow: var(--shadow-sm); }
+.claimchart thead tr { background: #f0ede8; }
+.claimchart th { padding: 9px 14px; text-align: left; font-size: .76em; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase; color: var(--ink-mid);
+  border-bottom: 1px solid var(--border-md); }
+.claimchart td { padding: 11px 14px; vertical-align: top; border-bottom: 1px solid var(--border);
+  border-left: 1px solid var(--border); }
+.claimchart td:first-child { border-left: none; }
+.claimchart tbody tr:last-child td { border-bottom: none; }
+.claimchart .cc-num { width: 30px; text-align: center; color: var(--ink-muted);
+  font-variant-numeric: tabular-nums; font-weight: 700; }
+.claimchart .cc-claim { width: 33%; line-height: 1.55; }
+.claimchart .cc-spec  { width: 33%; line-height: 1.55; }
+.claimchart .cc-verdict { width: 130px; }
+.cc-quote { color: var(--ink); }
+.cc-quote--empty { color: var(--ink-muted); font-style: italic; }
+.cc-srclabel { display: block; font-size: .72em; color: var(--ink-muted); margin-bottom: 3px;
+  letter-spacing: .04em; }
+.cc-row--gap     { background: rgba(244,135,126,.06); }
+.cc-row--partial { background: rgba(246,204,91,.07); }
+.cc-terms { margin-top: 6px; font-size: .82em; color: var(--ink-muted); }
+.cc-terms .chan-chip { margin-right: 4px; }
+/* highlighted matched tokens on both sides */
+mark.hl { background: #fff1a8; color: inherit; padding: 0 1px; border-radius: 2px;
+  box-shadow: inset 0 -2px 0 rgba(230,168,23,.5); }
+.cc-spec mark.hl { background: #d6f0df; box-shadow: inset 0 -2px 0 rgba(111,207,151,.7); }
+
+/* detail: proposals (提案・次アクション) */
+.proposals { margin: 22px 0 4px; }
+.proposal {
+  display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: start;
+  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent);
+  border-radius: var(--radius); padding: 14px 18px; margin: 10px 0; box-shadow: var(--shadow-sm);
+}
+.proposal--audit     { border-left-color: var(--missing-fg); }
+.proposal--defense   { border-left-color: var(--match-fg); }
+.proposal--interpret { border-left-color: #e6a817; }
+.proposal--review    { border-left-color: #e6a817; }
+.proposal--priority  { border-left-color: var(--ink-muted); }
+.proposal--acquire   { border-left-color: var(--ink-muted); }
+.proposal__cat {
+  font-size: .76em; font-weight: 800; letter-spacing: .04em; color: var(--ink-mid);
+  background: var(--paper); border: 1px solid var(--border-md); border-radius: var(--radius-sm);
+  padding: 3px 8px; text-align: center; white-space: nowrap;
+}
+.proposal__body { min-width: 0; }
+.proposal__text { font-size: .9em; line-height: 1.6; color: var(--ink); }
+.proposal__basis {
+  font-size: .82em; color: var(--ink-mid); border-left: 3px solid var(--match-border);
+  background: var(--paper); padding: 4px 10px; margin-top: 8px; border-radius: 0 4px 4px 0;
+  font-style: italic;
+}
+.proposal__basis-label { font-style: normal; font-weight: 700; font-size: .9em; color: var(--ink-muted);
+  letter-spacing: .04em; margin-right: 4px; }
+
 /* -------------------------------------------------------------- responsive */
 @media (max-width: 680px) {
+  .score-panel { grid-template-columns: 1fr; gap: 14px; }
+  .claimchart, .claimchart thead, .claimchart tbody, .claimchart tr, .claimchart td { display: block; }
+  .claimchart th { display: none; }
+  .claimchart td { border-left: none; width: auto; }
+  .proposal { grid-template-columns: 1fr; gap: 6px; }
   .container { padding: 20px 14px 48px; }
   .hero { padding: 20px 18px; }
   .verdict-summary { grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -785,6 +976,302 @@ def _verdict_badge(verdict_value: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# FTO triage-score helpers (M8 prototype)
+# ---------------------------------------------------------------------------
+
+# Risk band → short / full Japanese label.
+_BAND_JA = {"HIGH": "高", "MEDIUM": "中", "LOW": "低", "UNKNOWN": "不明"}
+_BAND_FULL_JA = {
+    "HIGH": "抵触リスク 高",
+    "MEDIUM": "抵触リスク 中",
+    "LOW": "抵触リスク 低",
+    "UNKNOWN": "判定不可",
+}
+# Per-element coverage band → Japanese label.
+_COV_BAND_JA = {"covered": "カバー", "partial": "一部", "gap": "欠落"}
+_AGREEMENT_THRESHOLD = 0.60  # mirrors analyze.score.AGREEMENT_THRESHOLD for the SN chip
+
+# Proposal category (Japanese) → ASCII CSS-class key (keeps selectors ASCII-safe).
+_PROPOSAL_CLASS = {
+    "精査": "audit",
+    "防御・設計回避": "defense",
+    "解釈確認": "interpret",
+    "要確認": "review",
+    "優先度": "priority",
+    "取得": "acquire",
+}
+
+
+def _band_class(band: str) -> str:
+    """Sanitize a band value for use in a CSS class suffix."""
+    b = (band or "UNKNOWN").upper()
+    return html.escape(b if b in _BAND_JA else "UNKNOWN")
+
+
+def _band_pill(band: str) -> str:
+    b = _band_class(band)
+    return f'<span class="band-pill band-pill--{b}">{html.escape(_BAND_JA.get(b, b))}</span>'
+
+
+def _clamp_pct(x: float) -> float:
+    return max(0.0, min(100.0, float(x)))
+
+
+def _score_track(coverage_pct: float, band_low: float, band_high: float, band: str) -> str:
+    """Thin coverage bar with the confidence band overlaid as a translucent strip."""
+    cov = _clamp_pct(coverage_pct)
+    lo = _clamp_pct(band_low)
+    hi = _clamp_pct(band_high)
+    width = max(0.0, hi - lo)
+    b = _band_class(band)
+    return (
+        '<div class="score-track">'
+        f'<span class="score-band" style="left:{lo:.1f}%;width:{width:.1f}%"></span>'
+        f'<span class="score-fill score-fill--{b}" style="width:{cov:.1f}%"></span>'
+        '</div>'
+    )
+
+
+def _risk_cell(score: "PatentScore") -> str:
+    """The index 抵触リスク cell: % + band pill + bar + range/agreement/review meta."""
+    b = _band_class(score.risk_band)
+    pct = int(round(score.coverage_pct))
+    lo = int(round(score.band_low))
+    hi = int(round(score.band_high))
+    conf = int(round(score.confidence_pct))
+    review_html = ""
+    if score.review_count:
+        review_html = (
+            f' ／ <span class="risk-review">要確認 {html.escape(str(score.review_count))}</span>'
+        )
+    return (
+        '<div class="risk-cell">'
+        '<div class="risk-head">'
+        f'<span class="risk-pct risk-pct--{b}">{pct}%</span>'
+        f'{_band_pill(score.risk_band)}'
+        '</div>'
+        f'{_score_track(score.coverage_pct, score.band_low, score.band_high, score.risk_band)}'
+        f'<div class="risk-meta">推定 {lo}–{hi}% ／ 一致度 {conf}%{review_html}</div>'
+        '</div>'
+    )
+
+
+def _triage_summary(scores: "list[PatentScore]") -> str:
+    """A banner of HIGH/MEDIUM/LOW + 要確認 counts for the screening list head."""
+    counts = {"HIGH": 0, "MEDIUM": 0, "LOW": 0, "UNKNOWN": 0}
+    review_total = 0
+    for s in scores:
+        counts[s.risk_band] = counts.get(s.risk_band, 0) + 1
+        review_total += s.review_count
+
+    chips = [
+        f'<span class="triage-chip triage-chip--TOTAL">'
+        f'<span class="triage-chip__n">{len(scores)}</span> 件</span>'
+    ]
+    for band in ("HIGH", "MEDIUM", "LOW", "UNKNOWN"):
+        if counts.get(band):
+            chips.append(
+                f'<span class="triage-chip triage-chip--{html.escape(band)}">'
+                f'{html.escape(_BAND_FULL_JA[band])} '
+                f'<span class="triage-chip__n">{counts[band]}</span></span>'
+            )
+    if review_total:
+        chips.append(
+            f'<span class="triage-chip triage-chip--REVIEW">'
+            f'要確認 <span class="triage-chip__n">{review_total}</span></span>'
+        )
+
+    return (
+        '<div class="triage-summary">' + "".join(chips) + '</div>\n'
+        '<p class="triage-hint">'
+        '抵触リスクの高い順に並んでいます。まず「抵触リスク 高」と「要確認」から確認してください。'
+        '値は対象仕様に対する独立請求項の推定カバレッジで、最終判断は専門家確認が前提です。'
+        '</p>\n'
+    )
+
+
+def _highlight(text: str, terms: "list[str]") -> str:
+    """Escape *text*, then wrap each matched *term* in <mark class="hl">.
+
+    XSS-safe: html.escape() runs FIRST, so the only markup added is our own
+    <mark> wrapper. Terms are word tokens (alnum), matched on word boundaries
+    so they do not bleed into HTML entities. Used to show exactly WHERE the
+    claim element and the spec passage overlap.
+    """
+    esc = html.escape(text or "")
+    terms = sorted({t for t in (terms or []) if t and len(t) > 1}, key=len, reverse=True)
+    if not terms:
+        return esc
+    pattern = re.compile(
+        r"(?i)\b(" + "|".join(re.escape(t) for t in terms) + r")\b"
+    )
+    return pattern.sub(lambda m: f'<mark class="hl">{m.group(0)}</mark>', esc)
+
+
+def _cov_bar(p_coverage: float, band: str) -> str:
+    """Per-element coverage mini-bar coloured by the element's coverage band."""
+    pct = _clamp_pct(p_coverage * 100.0)
+    cls = band if band in _COV_BAND_JA else "gap"
+    return (
+        '<span class="cov-bar-wrap">'
+        '<span class="cov-track">'
+        f'<span class="cov-fill cov-fill--{html.escape(cls)}" style="width:{pct:.0f}%"></span>'
+        '</span>'
+        f'<span class="cov-num">{pct:.0f}%</span>'
+        '</span>'
+    )
+
+
+def _score_section(score: "PatentScore") -> str:
+    """Detail-page screening-score section: panel + per-element coverage table.
+
+    This is the new headline view. It shows BOTH channels per element so the
+    deterministic×LLM fusion (and where they disagree = the SN ratio) is visible.
+    """
+    b = _band_class(score.risk_band)
+    pct = int(round(score.coverage_pct))
+    lo = _clamp_pct(score.band_low)
+    hi = _clamp_pct(score.band_high)
+    cov = _clamp_pct(score.coverage_pct)
+    width = max(0.0, hi - lo)
+
+    parts: list[str] = []
+    parts.append('<h2>スクリーニング・スコア（FTO 抵触リスク）</h2>\n')
+
+    # --- panel: dial + rationale + range + facts ---
+    parts.append(f'<div class="score-panel score-panel--{b}">\n')
+    parts.append(
+        '<div class="score-dial">'
+        f'<div class="score-dial__pct score-dial__pct--{b}">{pct}'
+        '<span style="font-size:.4em;font-weight:700;">%</span></div>'
+        '<div class="score-dial__cap">推定カバレッジ</div>'
+        f'<div class="score-dial__band band-pill band-pill--{b}">'
+        f'{html.escape(_BAND_FULL_JA.get(b, b))}</div>'
+        '</div>\n'
+    )
+    parts.append('<div class="score-right">\n')
+    parts.append(f'<p class="score-rationale">{_esc(score.rationale)}</p>\n')
+    # confidence band (the SN-ratio range) as a labelled bar
+    parts.append(
+        '<div class="score-fact__k">推定レンジ（2チャネルの一致度=SN比による信頼幅）</div>\n'
+        '<div class="score-conf-track">'
+        f'<span class="score-conf-band" style="left:{lo:.1f}%;width:{width:.1f}%"></span>'
+        f'<span class="score-conf-fill score-fill--{b}" style="width:{cov:.1f}%"></span>'
+        f'<span class="score-conf-pt" style="left:{cov:.1f}%"></span>'
+        f'<span class="score-conf-label">{int(round(lo))}–{int(round(hi))}%</span>'
+        '</div>\n'
+    )
+    parts.append('<div class="score-facts">\n')
+    for k, v in (
+        ("最弱要素の被覆", f"{int(round(score.min_coverage_pct))}%"),
+        ("欠落要素", f"{score.gap_count} / {score.n_elements}"),
+        ("一致度（SN比）", f"{int(round(score.confidence_pct))}%"),
+        ("要確認", f"{score.review_count} / {score.n_elements}"),
+    ):
+        parts.append(
+            f'<div class="score-fact"><div class="score-fact__k">{_esc(k)}</div>'
+            f'<div class="score-fact__v">{html.escape(v)}</div></div>\n'
+        )
+    parts.append('</div>\n')   # .score-facts
+    parts.append('</div>\n')   # .score-right
+    parts.append('</div>\n')   # .score-panel
+
+    # --- claim chart (対比表): claim element ↔ verbatim spec passage ---
+    if score.elements:
+        parts.append('<h2>クレームチャート（対比表）</h2>\n')
+        parts.append(
+            '<p style="font-size:.82em;color:var(--ink-muted);margin:-6px 0 4px;">'
+            '各要素を、対象仕様の<strong>対応記載（逐語引用）</strong>と突き合わせています。'
+            '黄＝請求項側／緑＝仕様側で一致した語をハイライト。引用は仕様本文の'
+            '逐語コピーで、機械的に部分文字列であることを保証しています（捏造なし）。'
+            '</p>\n'
+        )
+        parts.append(
+            '<table class="claimchart">\n'
+            '<thead><tr>'
+            '<th class="cc-num">#</th>'
+            '<th class="cc-claim">請求項要素（本文）</th>'
+            '<th class="cc-spec">対象仕様の対応記載（逐語引用）</th>'
+            '<th class="cc-verdict">判定</th>'
+            '</tr></thead>\n<tbody>\n'
+        )
+        for i, c in enumerate(score.elements, 1):
+            row_cls = (
+                " cc-row--gap" if c.band == "gap"
+                else (" cc-row--partial" if c.band == "partial" else "")
+            )
+            claim_html = _highlight(c.element, c.matched_terms)
+
+            if c.evidence_span:
+                spec_html = (
+                    '<span class="cc-srclabel">対象仕様より引用</span>'
+                    f'<span class="cc-quote">「{_highlight(c.evidence_span, c.matched_terms)}」</span>'
+                )
+            else:
+                spec_html = (
+                    '<span class="cc-quote cc-quote--empty">対応記載なし（欠落）</span>'
+                )
+
+            strict_pct = int(round(c.channels.get("strict", 0.0) * 100))
+            recall_pct = int(round(c.channels.get("recall", 0.0) * 100))
+            sn = int(round(c.confidence * 100))
+            sn_cls = "ok" if c.confidence >= _AGREEMENT_THRESHOLD else "warn"
+            status = _COV_BAND_JA.get(c.band, c.band)
+            status_band = "LOW" if c.band == "covered" else ("MEDIUM" if c.band == "partial" else "HIGH")
+            review_mark = (
+                ' <span class="risk-review" style="font-size:.78em;">要確認</span>'
+                if c.needs_review else ""
+            )
+            verdict_html = (
+                f'{_cov_bar(c.p_coverage, c.band)}'
+                f'<div style="margin-top:6px;">'
+                f'<span class="band-pill band-pill--{status_band}">{html.escape(status)}</span>'
+                f'{review_mark}</div>'
+                f'<div class="cc-terms">'
+                f'<span class="chan-chip">決定論 {strict_pct}%</span>'
+                f'<span class="chan-chip">LLM {recall_pct}%</span>'
+                f'<span class="sn-chip sn-chip--{sn_cls}">一致 {sn}%</span>'
+                f'</div>'
+            )
+
+            parts.append(
+                f'<tr class="cc-row{row_cls}">'
+                f'<td class="cc-num">{i}</td>'
+                f'<td class="cc-claim">{claim_html}</td>'
+                f'<td class="cc-spec">{spec_html}</td>'
+                f'<td class="cc-verdict">{verdict_html}</td>'
+                '</tr>\n'
+            )
+        parts.append('</tbody>\n</table>\n')
+
+    # --- proposals (提案・次アクション) ---
+    if score.proposals:
+        parts.append('<h2>提案・次アクション</h2>\n')
+        parts.append('<div class="proposals">\n')
+        for p in score.proposals:
+            cat_key = _PROPOSAL_CLASS.get(p.category, "priority")
+            basis_html = ""
+            if p.basis:
+                basis_html = (
+                    '<div class="proposal__basis">'
+                    '<span class="proposal__basis-label">根拠（仕様より逐語引用）:</span>'
+                    f'「{_esc(p.basis)}」</div>'
+                )
+            parts.append(
+                f'<div class="proposal proposal--{cat_key}">\n'
+                f'  <div class="proposal__cat">{_esc(p.category)}</div>\n'
+                '  <div class="proposal__body">\n'
+                f'    <div class="proposal__text">{_esc(p.text)}</div>\n'
+                f'    {basis_html}\n'
+                '  </div>\n'
+                '</div>\n'
+            )
+        parts.append('</div>\n')
+
+    return "".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # render_index
 # ---------------------------------------------------------------------------
 
@@ -792,11 +1279,14 @@ def render_index(
     records: "list[PatentRecord]",
     summaries: "list[PatentSummary]",
     comparisons: "list[ComparisonResult] | None" = None,
+    scores: "list[PatentScore] | None" = None,
 ) -> str:
     """Render the LIST page (index.html).
 
     Columns (§12): 番号 / タイトル / 庁 / 状態 / 請求項数 / 更新日
     When comparisons provided: + MATCH / MISSING / UNCLEAR counts.
+    When scores provided: a 抵触リスク score column is added, the rows are
+    sorted high-risk first (triage order), and a summary banner is shown.
 
     All dynamic text is escaped via _esc(). External links are NEVER
     generated for href attributes from raw patent data — only safe_filename
@@ -810,6 +1300,9 @@ def render_index(
         Corresponding PatentSummary objects (same order).
     comparisons:
         Optional list of ComparisonResult — enables verdict count columns.
+    scores:
+        Optional list of PatentScore — enables the FTO triage score column,
+        the triage summary banner, and high-risk-first row ordering.
     """
     # Build lookup dicts keyed by canonical.
     summary_map: dict[str, object] = {s.canonical: s for s in summaries}
@@ -818,22 +1311,44 @@ def render_index(
         for c in comparisons:
             comparison_map[c.patent_canonical] = c
 
+    score_map: dict[str, object] = {}
+    if scores:
+        for s in scores:
+            score_map[s.canonical] = s
+
     show_counts = bool(comparisons)
+    show_scores = bool(scores)
+
+    # When scores are present, present rows high-risk-first (triage order).
+    ordered_records = list(records)
+    if show_scores:
+        from ..analyze.score import triage_sort_key
+
+        def _row_key(rec):
+            canonical = rec.get("canonical", "") if isinstance(rec, dict) else rec.canonical
+            sc = score_map.get(canonical)
+            # Records without a score sink to the bottom, sorted by canonical.
+            return triage_sort_key(sc) if sc is not None else (9, 0.0, canonical)
+
+        ordered_records = sorted(records, key=_row_key)
 
     # Table header
-    th_cells = [
-        "<th>番号</th>",
-        "<th>タイトル</th>",
-        "<th>庁</th>",
-        "<th>状態</th>",
-        "<th>請求項数</th>",
-        "<th>更新日</th>",
+    th_cells = []
+    if show_scores:
+        th_cells.append('<th class="sortable" data-sort="risk">抵触リスク</th>')
+    th_cells += [
+        '<th class="sortable" data-sort="text">番号</th>',
+        '<th class="sortable" data-sort="text">タイトル</th>',
+        '<th class="sortable" data-sort="text">庁</th>',
+        '<th class="sortable" data-sort="text">状態</th>',
+        '<th class="sortable" data-sort="num">請求項数</th>',
+        '<th class="sortable" data-sort="text">更新日</th>',
     ]
     if show_counts:
         th_cells.append("<th>判定サマリ</th>")
 
     rows_html: list[str] = []
-    for rec in records:
+    for rec in ordered_records:
         # Support both dataclass instances and plain dicts.
         if isinstance(rec, dict):
             canonical = rec.get("canonical", "")
@@ -863,14 +1378,26 @@ def render_index(
             if legal_status else '<span style="color:var(--ink-muted)">—</span>'
         )
 
-        cells = [
-            f'<td><a href="{html.escape(link_href)}" style="font-weight:600;letter-spacing:.02em;">'
+        cells = []
+        if show_scores:
+            sc = score_map.get(canonical)
+            if sc is not None:
+                cells.append(
+                    f'<td class="risk-cell" data-sort-val="{sc.coverage_pct:.2f}">'
+                    f'{_risk_cell(sc)}</td>'
+                )
+            else:
+                cells.append('<td data-sort-val="-1" style="color:var(--ink-muted);">—</td>')
+
+        cells += [
+            f'<td data-sort-val="{_esc_raw(canonical)}">'
+            f'<a href="{html.escape(link_href)}" style="font-weight:600;letter-spacing:.02em;">'
             f'{_esc(canonical)}</a></td>',
-            f"<td>{_esc(title[:80] if title else '')}</td>",
-            f"<td>{office_badge}</td>",
-            f"<td>{status_badge}</td>",
-            f'<td style="text-align:center;font-variant-numeric:tabular-nums;">{html.escape(str(claim_count))}</td>',
-            f"<td>{_esc(pub_date)}</td>",
+            f'<td data-sort-val="{_esc_raw(title[:80] if title else "")}">{_esc(title[:80] if title else "")}</td>',
+            f'<td data-sort-val="{_esc_raw(office)}">{office_badge}</td>',
+            f'<td data-sort-val="{_esc_raw(legal_status or "")}">{status_badge}</td>',
+            f'<td data-sort-val="{claim_count}" style="text-align:center;font-variant-numeric:tabular-nums;">{html.escape(str(claim_count))}</td>',
+            f'<td data-sort-val="{_esc_raw(pub_date or "")}">{_esc(pub_date)}</td>',
         ]
 
         if show_counts:
@@ -906,15 +1433,37 @@ def render_index(
         '<tr><td colspan="9"><div class="empty-state">取得できた案件がありません。</div></td></tr>'
     )
 
+    banner = _triage_summary(scores) if show_scores else ""
+
+    # Progressive-enhancement click-to-sort (only emitted with the score table).
+    sort_js = ""
+    if show_scores:
+        sort_js = (
+            '<script>\n'
+            '(function(){var t=document.getElementById("patent-index");if(!t||!t.tHead)return;'
+            'var hs=t.tHead.rows[0].cells;for(var i=0;i<hs.length;i++){(function(idx){'
+            'var th=hs[idx];if(!th.classList.contains("sortable"))return;var asc=false;'
+            'th.addEventListener("click",function(){asc=!asc;'
+            'var ty=th.getAttribute("data-sort")||"text";var tb=t.tBodies[0];'
+            'var rs=Array.prototype.slice.call(tb.rows);rs.sort(function(a,b){'
+            'var x=a.cells[idx].getAttribute("data-sort-val");var y=b.cells[idx].getAttribute("data-sort-val");'
+            'if(ty==="num"||ty==="risk"){x=parseFloat(x)||0;y=parseFloat(y)||0;return asc?x-y:y-x;}'
+            'x=(x||"").toString();y=(y||"").toString();return asc?x.localeCompare(y):y.localeCompare(x);});'
+            'rs.forEach(function(r){tb.appendChild(r);});});})(i);}})();\n'
+            '</script>\n'
+        )
+
     body = (
         '<div class="page-title-row">\n'
         '<h1>特許調査インデックス</h1>\n'
         '</div>\n'
         f'<p class="record-count">{html.escape(str(len(records)))} 件取得済み</p>\n'
-        + f'<table class="data-table index-table">\n'
+        + banner
+        + '<table class="data-table index-table" id="patent-index">\n'
         f"<thead>{thead}</thead>\n"
         f"<tbody>\n{tbody}\n</tbody>\n"
         "</table>\n"
+        + sort_js
     )
 
     return _page_wrapper("特許調査インデックス — PatentKit", body)
@@ -929,10 +1478,12 @@ def render_detail(
     summary: "PatentSummary",
     comparison: "ComparisonResult | None" = None,
     history: "list[tuple[str, RecordDiff]] | None" = None,
+    score: "PatentScore | None" = None,
 ) -> str:
     """Render the DETAIL page for one patent.
 
     Sections:
+      0. スクリーニング・スコア (FTO risk %, dual-channel coverage, if score given)
       1. 書誌情報 (bibliographic info with source/source_url)
       2. 要約 (abstract + claim-element breakdown, labelled heuristic)
       3. 比較結果 (MATCH/MISSING/UNCLEAR table + escalation list, if comparison given)
@@ -949,6 +1500,9 @@ def render_detail(
     history:
         Optional list of (fetched_at, RecordDiff) pairs from build_site.py.
         None or empty list renders '履歴なし'.
+    score:
+        Optional PatentScore (M8 FTO triage score). Rendered as the headline
+        section right after the hero, before 書誌情報.
     """
     # Support both dataclass instances and plain dicts for record.
     if isinstance(record, dict):
@@ -1002,6 +1556,12 @@ def render_detail(
     if assignee:
         parts.append(f'  <p class="hero__subtitle">{_esc(assignee)}</p>\n')
     parts.append('</div>\n')
+
+    # -----------------------------------------------------------------------
+    # Section 0: スクリーニング・スコア (headline; only when score is provided)
+    # -----------------------------------------------------------------------
+    if score is not None:
+        parts.append(_score_section(score))
 
     # -----------------------------------------------------------------------
     # Section 1: 書誌情報

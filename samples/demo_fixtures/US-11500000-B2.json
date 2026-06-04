@@ -1,0 +1,19 @@
+{
+  "canonical": "US-11500000-B2",
+  "office": "US",
+  "number": "11500000",
+  "title": "Thermal management for inductive charging pad",
+  "abstract": "An inductive charging pad with active thermal management using a temperature sensor and a cooling fan controlled to keep the coil below a temperature limit.",
+  "claims": [
+    "An inductive charging pad comprising: a primary coil; a temperature sensor thermally coupled to the primary coil; a cooling fan; and a controller configured to drive the cooling fan and to limit power to the primary coil when a measured temperature exceeds a threshold.",
+    "The pad of claim 1, wherein the temperature sensor is a thermistor.",
+    "The pad of claim 1, wherein the controller reduces a duty cycle of the primary coil when the threshold is exceeded."
+  ],
+  "assignee": "Sample Thermal Systems LLC",
+  "pub_date": "2022-11-08",
+  "legal_status": "Granted - in force",
+  "family_id": "FAM-0004",
+  "source": "DEMO FIXTURE (synthetic, not a real patent)",
+  "source_url": null,
+  "notes": ["Synthetic demo sample for the triage UI; not a real USPTO record."]
+}

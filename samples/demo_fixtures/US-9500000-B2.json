@@ -1,0 +1,19 @@
+{
+  "canonical": "US-9500000-B2",
+  "office": "US",
+  "number": "9500000",
+  "title": "Wireless charger with foreign object detection",
+  "abstract": "A wireless charging transmitter that detects metallic foreign objects on the charging surface and halts power delivery to prevent overheating.",
+  "claims": [
+    "A wireless charging apparatus comprising: a transmitter coil; a controller configured to drive the transmitter coil; and a foreign object detection unit configured to detect a metallic object and to halt charging when the metallic object is detected.",
+    "The apparatus of claim 1, wherein the foreign object detection unit measures a quality factor of the transmitter coil.",
+    "The apparatus of claim 1, wherein the controller resumes charging after the metallic object is removed."
+  ],
+  "assignee": "Sample Safety Charging Inc.",
+  "pub_date": "2019-05-21",
+  "legal_status": "Granted - in force",
+  "family_id": "FAM-0003",
+  "source": "DEMO FIXTURE (synthetic, not a real patent)",
+  "source_url": null,
+  "notes": ["Synthetic demo sample for the triage UI; not a real USPTO record."]
+}

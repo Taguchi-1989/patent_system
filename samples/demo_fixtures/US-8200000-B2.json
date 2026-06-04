@@ -1,0 +1,19 @@
+{
+  "canonical": "US-8200000-B2",
+  "office": "US",
+  "number": "8200000",
+  "title": "Camera lens module with autofocus actuator",
+  "abstract": "A compact camera module including a lens assembly, a voice-coil autofocus actuator, and an image sensor that captures focused images for a mobile device.",
+  "claims": [
+    "A camera module comprising: a lens assembly; an autofocus actuator configured to move the lens assembly along an optical axis; and an image sensor configured to capture an image formed by the lens assembly.",
+    "The module of claim 1, wherein the autofocus actuator comprises a voice coil motor.",
+    "The module of claim 1, further comprising an optical image stabilization unit."
+  ],
+  "assignee": "Sample Optics K.K.",
+  "pub_date": "2015-07-02",
+  "legal_status": "Granted - in force",
+  "family_id": "FAM-0005",
+  "source": "DEMO FIXTURE (synthetic, not a real patent)",
+  "source_url": null,
+  "notes": ["Synthetic demo sample (unrelated domain) for the triage UI; not a real USPTO record."]
+}

@@ -18,6 +18,15 @@ from .compare import (
     HeuristicJudge,
     compare,
 )
+from .score import (
+    ElementCoverage,
+    PatentScore,
+    Proposal,
+    LenientJudge,
+    score_patent,
+    score_all,
+    triage_sort_key,
+)
 
 __all__ = [
     "ClaimBreakdown",
@@ -29,4 +38,11 @@ __all__ = [
     "Judge",
     "HeuristicJudge",
     "compare",
+    "ElementCoverage",
+    "PatentScore",
+    "Proposal",
+    "LenientJudge",
+    "score_patent",
+    "score_all",
+    "triage_sort_key",
 ]

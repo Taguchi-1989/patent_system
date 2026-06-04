@@ -1,0 +1,6 @@
+number,note
+US10123456B2,Wireless power transfer w/ adaptive coil alignment (expect HIGH)
+US9500000B2,Wireless charger w/ foreign object detection (expect HIGH)
+EP1234567B1,Inductive charging w/ duty-cycle regulation (expect MEDIUM)
+US11500000B2,Thermal management for inductive pad (expect MEDIUM)
+US8200000B2,Camera lens autofocus module - unrelated domain (expect LOW)
