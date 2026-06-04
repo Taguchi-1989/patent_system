@@ -29,7 +29,7 @@ dist/
 
 # --- Verification artifacts (screenshots, playwright) ---
 /.playwright-mcp/
-/m5-*.png
+/*.png
 
 # --- OMC tooling state ---
 /.omc/

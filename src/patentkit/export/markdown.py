@@ -8,14 +8,83 @@ column is added by render_report() when comparisons are provided.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ..analyze import PatentSummary
 from ..analyze.compare import ComparisonResult, Verdict
 from ..connectors.base import PatentRecord
+
+if TYPE_CHECKING:
+    from ..analyze.score import PatentScore
 
 DISCLAIMER = (
     "> **注記**: 本レポートはAIによる支援結果であり、侵害の有無や法的結論を確定するもの"
     "ではありません。最終判断は弁理士・弁護士等の専門家確認を前提とします。"
 )
+
+_BAND_JA = {"HIGH": "高", "MEDIUM": "中", "LOW": "低", "UNKNOWN": "不明"}
+
+
+def _screening_table(scores: "list[PatentScore]") -> str:
+    """Triage table sorted high-risk first: 番号 | リスク | 推定カバレッジ | 最弱要素 | 欠落 | 要確認."""
+    from ..analyze.score import triage_sort_key
+
+    head = "| 抵触リスク | 番号 | 推定カバレッジ | 推定レンジ | 最弱要素 | 欠落 | 要確認 |"
+    sep = "|---|---|---|---|---|---|---|"
+    rows = [head, sep]
+    for s in sorted(scores, key=triage_sort_key):
+        band = _BAND_JA.get(s.risk_band, s.risk_band)
+        rows.append(
+            f"| **{band}** | {s.canonical} | {s.coverage_pct:.0f}% | "
+            f"{s.band_low:.0f}–{s.band_high:.0f}% | {s.min_coverage_pct:.0f}% | "
+            f"{s.gap_count}/{s.n_elements} | {s.review_count}/{s.n_elements} |"
+        )
+    return "\n".join(rows)
+
+
+def _cell(text: str, limit: int = 140) -> str:
+    """Sanitize a string for a Markdown table cell (escape pipes, collapse newlines)."""
+    t = " ".join((text or "").split())
+    if len(t) > limit:
+        t = t[: limit - 1] + "…"
+    return t.replace("|", "｜")
+
+
+_COV_BAND_JA = {"covered": "カバー", "partial": "一部", "gap": "欠落"}
+
+
+def _claimchart_section(scores: "list[PatentScore]") -> str:
+    """Per-patent claim chart (対比表) + proposals, grounded in verbatim quotes.
+
+    Every spec cell is a verbatim substring of the target spec; proposals cite
+    the same verbatim basis (or honestly state absence) — no generated prose.
+    """
+    lines = ["## クレームチャート・対比表（根拠は逐語引用）", ""]
+    for s in scores:
+        if not s.elements:
+            continue
+        lines.append(f"### {s.canonical} — 抵触リスク **{_BAND_JA.get(s.risk_band, s.risk_band)}**"
+                     f"（推定カバレッジ {s.coverage_pct:.0f}%）")
+        lines.append("")
+        lines.append("| # | 請求項要素（本文） | 対象仕様の対応記載（逐語引用） | 判定 | 一致語 |")
+        lines.append("|---|---|---|---|---|")
+        for i, c in enumerate(s.elements, 1):
+            quote = f"「{_cell(c.evidence_span)}」" if c.evidence_span else "_対応記載なし（欠落）_"
+            terms = "、".join(c.matched_terms) if c.matched_terms else "—"
+            band = _COV_BAND_JA.get(c.band, c.band)
+            lines.append(
+                f"| {i} | {_cell(c.element)} | {quote} | {band}({c.p_coverage:.0%}) | {_cell(terms, 60)} |"
+            )
+        lines.append("")
+        if s.proposals:
+            lines.append("**提案・次アクション**")
+            lines.append("")
+            for p in s.proposals:
+                lines.append(f"- **[{p.category}]** {p.text}")
+                if p.basis:
+                    lines.append(f"  - 根拠（仕様より逐語引用）: 「{_cell(p.basis)}」")
+            lines.append("")
+    return "\n".join(lines)
 
 
 def _comparison_table(records: list[PatentRecord]) -> str:
@@ -93,8 +162,23 @@ def render_report(
     records: list[PatentRecord],
     not_found: list[str] | None = None,
     comparisons: list[ComparisonResult] | None = None,
+    scores: "list[PatentScore] | None" = None,
 ) -> str:
     parts = ["# 特許調査サマリ（自動生成・初稿）", "", DISCLAIMER, ""]
+
+    # --- M8: FTO triage screening table (present only when scores given) ---
+    if scores:
+        parts.append("## スクリーニング（FTO 抵触リスク・高い順）")
+        parts.append("")
+        parts.append(f"> 対象仕様: **{scores[0].target_spec_title}**　"
+                     "／ 推定カバレッジ = 決定論チャネル×LLMチャネルの融合、"
+                     "レンジ = 2チャネルの一致度(SN比)による信頼幅。")
+        parts.append("")
+        parts.append(_screening_table(scores))
+        parts.append("")
+        parts.append(_claimchart_section(scores))
+        parts.append("")
+
     parts.append("## 比較表（事実フィールドのみ）")
     parts.append("")
     parts.append(_comparison_table(records) if records else "_取得できた案件がありません。_")

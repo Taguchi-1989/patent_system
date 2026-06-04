@@ -18,6 +18,31 @@ from .compare import (
     HeuristicJudge,
     compare,
 )
+from .score import (
+    ElementCoverage,
+    PatentScore,
+    Proposal,
+    LenientJudge,
+    score_patent,
+    score_all,
+    triage_sort_key,
+    build_channels,
+    default_channels,
+)
+from .llm_judge import (
+    OpenAICompatibleJudge,
+    AzureOpenAIJudge,
+    GitHubModelsJudge,
+    make_azure_judge_from_env,
+    make_github_models_judge_from_env,
+    make_llm_judge_from_env,
+)
+from .agent_judge import (
+    AgentJudge,
+    make_agent_judge_from_file,
+    build_worksheet,
+    write_worksheet,
+)
 
 __all__ = [
     "ClaimBreakdown",
@@ -29,4 +54,23 @@ __all__ = [
     "Judge",
     "HeuristicJudge",
     "compare",
+    "ElementCoverage",
+    "PatentScore",
+    "Proposal",
+    "LenientJudge",
+    "score_patent",
+    "score_all",
+    "triage_sort_key",
+    "build_channels",
+    "default_channels",
+    "OpenAICompatibleJudge",
+    "AzureOpenAIJudge",
+    "GitHubModelsJudge",
+    "make_azure_judge_from_env",
+    "make_github_models_judge_from_env",
+    "make_llm_judge_from_env",
+    "AgentJudge",
+    "make_agent_judge_from_file",
+    "build_worksheet",
+    "write_worksheet",
 ]

@@ -1,0 +1,7 @@
+# Optional LLM "brain" for the semantic scoring channel (analyze/llm_judge.py).
+# The keyless backbone (requirements.txt) never imports these; install only if
+# you run the pipeline with `--llm azure`.
+#
+#   pip install -r requirements-llm.txt
+#
+openai>=1.40
