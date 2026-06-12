@@ -18,8 +18,20 @@ from .bigquery import BigQueryExportSource, BigQuerySource, record_from_bq_row
 from .bulk_uspto import BulkDataSource, parse_uspto_grant_xml, week_url_for_date
 from .fallback import FallbackSource, RetryingSource
 from .fixture import FixtureSource
+from .legal_status import (
+    FixtureLegalStatusProvider,
+    OPSLegalStatusProvider,
+    apply_legal_status,
+    make_ops_provider_from_env,
+    parse_ops_legal_xml,
+)
 
 __all__ = [
+    "FixtureLegalStatusProvider",
+    "OPSLegalStatusProvider",
+    "apply_legal_status",
+    "make_ops_provider_from_env",
+    "parse_ops_legal_xml",
     "PatentRecord",
     "PatentSource",
     "FixtureSource",

@@ -1,0 +1,31 @@
+{
+  "US-10123456-B2": {
+    "events": [
+      {"date": "2018-11-06", "code": "GRANT", "description": "PATENT GRANTED"}
+    ]
+  },
+  "US-9500000-B2": {
+    "events": [
+      {"date": "2016-11-22", "code": "GRANT", "description": "PATENT GRANTED"},
+      {"date": "2024-07-01", "code": "MM4A", "description": "LAPSE DUE TO NON-PAYMENT OF MAINTENANCE FEE"}
+    ]
+  },
+  "EP-1234567-B1": {
+    "events": [
+      {"date": "2010-03-17", "code": "GRANT", "description": "EUROPEAN PATENT GRANTED"},
+      {"date": "2022-03-17", "code": "PG25", "description": "LAPSED IN A CONTRACTING STATE ANNOUNCED VIA POSTGRANT INFORMATION FROM NATIONAL OFFICE"},
+      {"date": "2022-09-01", "code": "RESTORE", "description": "RIGHTS REINSTATED AFTER APPEAL"}
+    ]
+  },
+  "US-11500000-B2": {
+    "events": [
+      {"date": "2022-11-15", "code": "GRANT", "description": "PATENT GRANTED"}
+    ]
+  },
+  "US-8200000-B2": {
+    "events": [
+      {"date": "2012-06-19", "code": "GRANT", "description": "PATENT GRANTED"},
+      {"date": "2024-06-19", "code": "EXP", "description": "PATENT EXPIRED AT END OF TERM"}
+    ]
+  }
+}

@@ -74,7 +74,12 @@ def record_from_bq_row(row: dict) -> PatentRecord:
     notes: list[str] = []
     if len(claims) > 1:
         notes.append("claims split heuristically from a single text blob; verify boundaries")
-    notes.append("legal status not present in patents.publications (use INPADOC/OPS later)")
+    notes.append("legal status not present in patents.publications (use --legal fixture|ops to enrich)")
+    if office == "JP":
+        notes.append(
+            "JP原文・経過情報は J-PlatPat（https://www.j-platpat.inpit.go.jp/）の"
+            f"番号検索で「{number}」を確認（深いリンクは不安定なため番号で案内）"
+        )
 
     return PatentRecord(
         canonical=pub,

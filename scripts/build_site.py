@@ -42,6 +42,9 @@ from patentkit.connectors import (                         # noqa: E402
     BigQueryExportSource,
     BigQuerySource,
     FixtureSource,
+    FixtureLegalStatusProvider,
+    apply_legal_status,
+    make_ops_provider_from_env,
 )
 from patentkit.export.html import render_detail, render_index, _safe_filename  # noqa: E402
 from patentkit.normalize import normalize                  # noqa: E402
@@ -144,6 +147,10 @@ def main() -> int:
                    help="agent-filled worksheet JSON (for --llm agent)")
     p.add_argument("--store", default=DEFAULT_STORE,
                    help="snapshot store directory for diff history (default: cache/snapshots)")
+    p.add_argument("--legal", choices=["none", "fixture", "ops"], default="none",
+                   help="legal-status enrichment: 'fixture' = local JSON (zero keys), "
+                        "'ops' = EPO OPS INPADOC (free key), 'none' (default)")
+    p.add_argument("--legal-file", help="legal-status fixture JSON (for --legal fixture)")
     args = p.parse_args()
 
     # 1. Ingestion
@@ -157,14 +164,31 @@ def main() -> int:
     if hasattr(source, "prefetch"):
         source.prefetch([n.canonical for n in normalized])
 
-    records, summaries, not_found = [], [], []
+    records, not_found = [], []
     for n in normalized:
         rec = source.fetch(n)
         if rec is None:
             not_found.append(n.canonical or n.raw)
             continue
         records.append(rec)
-        summaries.append(summarize(rec))
+
+    # 2b. Legal-status enrichment (M9) — before summarize so the UI carries it
+    if args.legal != "none":
+        if args.legal == "fixture":
+            if not args.legal_file:
+                sys.exit("--legal fixture には --legal-file <status.json> が必要です"
+                         "（例: samples/legal_status_SAMPLE.json）")
+            provider = FixtureLegalStatusProvider(args.legal_file)
+        else:
+            provider = make_ops_provider_from_env()
+            if provider is None:
+                sys.exit("--legal ops には OPS_CONSUMER_KEY / OPS_CONSUMER_SECRET が必要です"
+                         "（developers.epo.org で無料登録）。鍵ゼロなら --legal fixture を使用。")
+        infos = apply_legal_status(records, provider)
+        dead = sum(1 for i in infos if i.status in ("LAPSED", "EXPIRED", "REVOKED"))
+        print(f"legal status: {len(infos)} 件付与 / 失効・満了・取消 {dead} 件（根拠付き）")
+
+    summaries = [summarize(rec) for rec in records]
 
     # 3. FTO triage scoring (only when --spec is provided).
     #    The score (decision×LLM fusion) supersedes the legacy MATCH/MISSING table
