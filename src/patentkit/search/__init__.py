@@ -9,12 +9,13 @@ Same KEYLESS-first split as the Retrieval layer: SQL-in-console + export JSON
 needs no install; the live route reuses google-cloud-bigquery lazily.
 """
 
-from .query import SearchQuery, build_search_sql, load_query_spec
+from .query import SearchQuery, build_fetch_sql, build_search_sql, load_query_spec
 from .rank import Candidate, dedupe_by_family, rank_rows
 from .semantic import apply_semantic, make_embedder_from_env, semantic_scores
 
 __all__ = [
     "SearchQuery",
+    "build_fetch_sql",
     "build_search_sql",
     "load_query_spec",
     "Candidate",

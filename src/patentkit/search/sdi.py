@@ -83,7 +83,9 @@ def render_sdi_report(q: SearchQuery, new: list[Candidate], seen_total: int,
             f"{c.score}{flag} | {sem} | {c.groups_hit}/{c.groups_total} | {title} | {ev} |"
         )
     lines.append("")
-    lines.append("次の一手: 新着のみの `sdi_<テーマ>_new.csv` を既存パイプラインへ — "
-                 "`py scripts/build_site.py <csv> --spec <自社仕様>` でFTOトリアージ。")
+    lines.append("次の一手: 監視結果にはクレーム本文が無いため、同時生成の "
+                 "`sdi_<テーマ>_fetch.sql`（claims込み・新着のみ）をコンソールで実行 → JSON保存 → "
+                 "`py scripts/build_site.py sdi_<テーマ>_new.csv --source bq-export "
+                 "--export <その結果JSON> --spec <自社仕様>` でFTOトリアージ。")
     lines.append("")
     return "\n".join(lines)

@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from patentkit.search import (                                              # noqa: E402
     apply_semantic,
+    build_fetch_sql,
     build_search_sql,
     load_query_spec,
     make_embedder_from_env,
@@ -108,11 +109,24 @@ def main() -> None:
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(render_search_report(q, cands, total_rows=len(rows)))
 
+    # The search export has no claims (cost) — emit the claims-included fetch
+    # SQL for the final candidates so the FTO handoff actually has claim text.
+    fetch_path = None
+    if cands:
+        fetch_path = os.path.join(args.out_dir, "fetch_records.sql")
+        with open(fetch_path, "w", encoding="utf-8") as f:
+            f.write(build_fetch_sql([c.publication_number for c in cands], label=q.name))
+
     flagged = sum(1 for c in cands if c.needs_review)
     print(f"{len(rows)} 行 → 候補 {len(cands)} 件（要確認 {flagged}）")
     print(f"[saved] {csv_path}")
     print(f"[saved] {md_path}")
-    print("次: candidates.csv を build_site.py / run_pipeline.py へそのまま入力できます")
+    if fetch_path:
+        print(f"[saved] {fetch_path}")
+        print("次: 検索エクスポートにはクレーム本文が無いため、fetch_records.sql を"
+              "コンソールで実行 → JSON保存 →")
+        print("    py scripts/build_site.py outputs/candidates.csv "
+              "--source bq-export --export <その結果JSON> --spec <自社仕様>")
 
 
 if __name__ == "__main__":

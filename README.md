@@ -77,8 +77,14 @@ Markdown（NotebookLM向け）が要るなら `py scripts/run_pipeline.py ...（
 py scripts/search_patents.py samples/search_query_SAMPLE.json
 # 2. コンソールでSQL実行 → 結果をJSON保存 → ランク付け（逐語根拠・ファミリー集約）
 py scripts/search_patents.py samples/search_query_SAMPLE.json --from-export <結果.json>
-# → outputs/candidates.csv（そのまま build_site.py / run_pipeline.py の入力になる）
+# → outputs/candidates.csv（build_site.py / run_pipeline.py の入力形式）
 # → outputs/search_report.md（サーチ式記録＝再現可能な調査ログ）
+# → outputs/fetch_records.sql（候補番号の全文取得SQL・claims込み）
+# 3. FTOスコアリングへ渡すときは fetch_records.sql の結果JSONを使う
+#    （検索SQLはコスト節約でクレーム本文を取らないため、検索の結果JSONを
+#      そのまま --export に渡すとクレームが空になりスコアが出ない）
+py scripts/build_site.py outputs/candidates.csv --source bq-export \
+   --export <fetch結果.json> --spec <自社仕様>
 ```
 
 ランキングは**二チャネル**：決定論（タイトル/要約/CPCのアンカー採点＋逐語スニペット）×

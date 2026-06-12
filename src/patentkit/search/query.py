@@ -108,6 +108,42 @@ def _text_match(regex: str, search_claims: bool) -> str:
     return "(" + "\n       OR ".join(parts) + ")"
 
 
+def build_fetch_sql(numbers: list[str], label: str = "candidates") -> str:
+    """Console-pasteable SQL fetching FULL records (incl. claims) by number.
+
+    The search SELECT deliberately omits ``claims_localized`` (full-column
+    scan cost on every tuning iteration), so its export cannot feed FTO
+    scoring — claims would be empty. This second query is the handoff: run it
+    once for the final candidate list and feed THAT export to the pipeline.
+    """
+    if not numbers:
+        raise ValueError("no candidate numbers to fetch")
+    nums = ",\n  ".join(_sql_str(n) for n in numbers)
+    return (
+        f"-- Fetch full records for {label} ({len(numbers)} numbers) — includes claims.\n"
+        "-- Paste into the BigQuery console, run, Save results -> JSON, then:\n"
+        "--   py scripts/build_site.py outputs/candidates.csv --source bq-export \\\n"
+        "--      --export <その結果JSON> --spec <自社仕様>\n"
+        "-- COST NOTE: claims_localized is the largest column; run this once for the\n"
+        "-- final list, not per search-tuning iteration.\n"
+        "SELECT\n"
+        "  publication_number,\n"
+        "  country_code,\n"
+        "  kind_code,\n"
+        "  application_number,\n"
+        "  publication_date,\n"
+        "  filing_date,\n"
+        "  grant_date,\n"
+        "  family_id,\n"
+        "  title_localized,\n"
+        "  abstract_localized,\n"
+        "  claims_localized,\n"
+        "  assignee_harmonized\n"
+        f"FROM {_TABLE}\n"
+        f"WHERE publication_number IN (\n  {nums}\n)\n"
+    )
+
+
 def build_search_sql(q: SearchQuery) -> str:
     """Render the search brief as console-pasteable BigQuery SQL."""
     q.validate()

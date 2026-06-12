@@ -45,8 +45,10 @@ _REPORT_TYPES = {
         "FTO（実施自由度）スクリーニング",
         "自社実施予定技術に対する障害特許の洗い出し。**存続中の特許のみが障害**になるため、"
         "候補確定後は `--legal` で法的状態を必ず付与する。",
-        "次の一手: `outputs/candidates.csv` を `py scripts/build_site.py <csv> --spec <自社仕様> "
-        "--legal fixture|ops` へ — 抵触リスク%トリアージと法的状態が一画面に揃う。",
+        "次の一手: 検索結果にはクレーム本文が無いため、`outputs/fetch_records.sql`（claims込み）を"
+        "コンソールで実行 → JSON保存 → `py scripts/build_site.py outputs/candidates.csv "
+        "--source bq-export --export <その結果JSON> --spec <自社仕様> --legal fixture|ops` — "
+        "抵触リスク%トリアージと法的状態が一画面に揃う。",
     ),
     "sdi": (
         "SDI（定期監視）初回ベースライン",
@@ -131,8 +133,10 @@ def render_search_report(q: SearchQuery, cands: list[Candidate], total_rows: int
     lines.append("---")
     lines.append("")
     lines.append(type_next or (
-        "次の一手: `outputs/candidates.csv` をそのまま既存パイプラインへ — "
-        "`py scripts/build_site.py outputs/candidates.csv --source bq-export --export <結果JSON> --spec <自社仕様>`"
+        "次の一手: 検索結果のエクスポートには**クレーム本文が含まれない**（コスト節約）ため、"
+        "同時生成の `outputs/fetch_records.sql`（claims込み・候補番号のみ）をコンソールで実行 → "
+        "JSON保存 → `py scripts/build_site.py outputs/candidates.csv --source bq-export "
+        "--export <その結果JSON> --spec <自社仕様>`"
     ))
     lines.append("")
     return "\n".join(lines)

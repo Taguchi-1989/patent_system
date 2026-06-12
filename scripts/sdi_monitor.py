@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from patentkit.search import (                                  # noqa: E402
     apply_semantic,
+    build_fetch_sql,
     build_search_sql,
     load_query_spec,
     rank_rows,
@@ -104,6 +105,14 @@ def main() -> None:
     csv_path = os.path.join(args.out_dir, f"sdi_{q.name}_new.csv")
     with open(csv_path, "w", encoding="utf-8", newline="") as f:
         f.write(candidates_csv(new))
+    fetch_path = None
+    if new:
+        # Search rows carry no claims (cost) — emit the claims-included fetch
+        # SQL for the new hits so the FTO handoff has claim text.
+        fetch_path = os.path.join(args.out_dir, f"sdi_{q.name}_fetch.sql")
+        with open(fetch_path, "w", encoding="utf-8") as f:
+            f.write(build_fetch_sql([c.publication_number for c in new],
+                                    label=f"sdi:{q.name} new hits"))
 
     label = "初回ベースライン" if first_run else "差分"
     print(f"[{label}] ヒット {len(cands)} 件 / 新着 {len(new)} 件 / 既知合計 {len(state['seen'])} 件")
@@ -111,7 +120,10 @@ def main() -> None:
     print(f"[saved] {csv_path}")
     print(f"[state] {state_path}")
     if new:
-        print("新着あり → sdi_*_new.csv を build_site.py --spec <自社仕様> でFTOトリアージへ")
+        print(f"[saved] {fetch_path}")
+        print("新着あり → fetch SQLをコンソールで実行(claims込み) → JSON保存 →")
+        print(f"    py scripts/build_site.py {csv_path} --source bq-export "
+              "--export <その結果JSON> --spec <自社仕様> でFTOトリアージへ")
 
 
 if __name__ == "__main__":

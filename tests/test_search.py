@@ -10,6 +10,7 @@ import pytest
 
 from patentkit.search import (
     SearchQuery,
+    build_fetch_sql,
     build_search_sql,
     dedupe_by_family,
     load_query_spec,
@@ -92,6 +93,17 @@ def test_sql_claims_column_only_when_requested():
 def test_sql_date_validation():
     with pytest.raises(ValueError, match="YYYY-MM-DD"):
         build_search_sql(_q(date_from="2015/01/01"))
+
+
+def test_fetch_sql_includes_claims_for_fto_handoff():
+    # The search SELECT omits claims (cost); the handoff fetch MUST have them,
+    # otherwise the bq-export path feeds claim-less records into FTO scoring.
+    sql = build_fetch_sql(["US-9500000-B2", "EP-3000000-A1"])
+    assert "claims_localized" in sql
+    assert "'US-9500000-B2'" in sql and "'EP-3000000-A1'" in sql
+    assert "publication_number IN" in sql
+    with pytest.raises(ValueError, match="no candidate"):
+        build_fetch_sql([])
 
 
 # ---- ranking -------------------------------------------------------------
