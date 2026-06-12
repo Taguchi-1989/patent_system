@@ -81,8 +81,32 @@ py scripts/search_patents.py samples/search_query_SAMPLE.json --from-export <結
 # → outputs/search_report.md（サーチ式記録＝再現可能な調査ログ）
 ```
 
-ランキングは決定論（タイトル/要約/CPCのアンカー採点＋逐語スニペット）。概念を取りこぼした
-候補は `needs_review` で要確認に落ちる——スコアリングと同じP-NO-GUESS。
+ランキングは**二チャネル**：決定論（タイトル/要約/CPCのアンカー採点＋逐語スニペット）×
+意味（TF-IDFコサイン・鍵ゼロ既定、`--semantic azure|github` でAPIエンベッダに差し替え可）。
+概念の取りこぼしやチャネル乖離は `needs_review` で要確認に落ちる——スコアリングと同じP-NO-GUESS。
+ブリーフの `report_type`（`prior-art` / `fto` / `sdi`）で調査様式に応じた枠組み文に変わる。
+
+### 生きている特許か？ — 法的状態（M9）
+
+失効・満了・取消の特許はFTOの障害にならない。`--legal` で法的状態を付与すると、
+死亡イベントの**逐語根拠つき**で除外候補に落ちる（根拠が無ければUNKNOWN＋要確認——
+存続を推測しない）：
+
+```bash
+py scripts/build_site.py outputs/candidates.csv --source ... --spec <自社仕様> \
+   --legal fixture --legal-file samples/legal_status_SAMPLE.json   # 鍵ゼロ
+# 実データは EPO OPS（developers.epo.org で無料登録 → OPS_CONSUMER_KEY/_SECRET）:
+#   --legal ops
+```
+
+### 同じサーチ式を定期実行して新着だけ追う — SDI監視（M11）
+
+```bash
+py scripts/sdi_monitor.py samples/search_query_SAMPLE.json --from-export <結果.json>
+# 1回目 = 初回ベースライン。2回目以降 = 新着のみ outputs/sdi_<テーマ>.md に報告
+# （新着ゼロは「変更なし」を明示）。状態は monitor_state/sdi/<テーマ>.json（コミット可）。
+# M6 の GitHub Actions cron に載せれば「毎週回して新着だけ通知」が自動化される。
+```
 
 ### 鍵を入れる / 入れない（2モード）
 

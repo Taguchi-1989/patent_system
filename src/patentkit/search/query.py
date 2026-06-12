@@ -40,6 +40,7 @@ class SearchQuery:
 
     name: str = "search"
     purpose: str = ""
+    report_type: str = ""     # "prior-art" | "fto" | "sdi" | "" (generic) — M11
     description: str = ""     # free-text invention description (semantic query, M10)
     keywords: list[list[str]] = field(default_factory=list)
     cpc: list[str] = field(default_factory=list)
