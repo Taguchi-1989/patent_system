@@ -40,6 +40,7 @@ class SearchQuery:
 
     name: str = "search"
     purpose: str = ""
+    description: str = ""     # free-text invention description (semantic query, M10)
     keywords: list[list[str]] = field(default_factory=list)
     cpc: list[str] = field(default_factory=list)
     assignees: list[str] = field(default_factory=list)

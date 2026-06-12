@@ -42,6 +42,8 @@ class Candidate:
     evidence: list[str] = field(default_factory=list)   # verbatim snippets
     needs_review: bool = False
     notes: list[str] = field(default_factory=list)
+    semantic: float | None = None    # recall channel 0..1 (M10, when enabled)
+    combined: float | None = None    # fused keyword+semantic rank value
 
 
 def _texts(arr) -> list[str]:
@@ -122,7 +124,7 @@ def score_row(row: dict, q: SearchQuery) -> Candidate:
         groups_hit=groups_hit,
         groups_total=len(q.keywords),
         matched_terms=matched,
-        evidence=evidence,
+        evidence=list(dict.fromkeys(evidence)),  # same snippet may back 2 concepts
         needs_review=needs_review,
         notes=notes,
     )

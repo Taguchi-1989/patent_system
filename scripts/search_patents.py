@@ -26,7 +26,13 @@ if hasattr(sys.stderr, "reconfigure"):
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from patentkit.search import build_search_sql, load_query_spec, rank_rows   # noqa: E402
+from patentkit.search import (                                              # noqa: E402
+    apply_semantic,
+    build_search_sql,
+    load_query_spec,
+    make_embedder_from_env,
+    rank_rows,
+)
 from patentkit.search.report import candidates_csv, render_search_report    # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
@@ -62,6 +68,9 @@ def main() -> None:
     ap.add_argument("--live", action="store_true", help="run the query live via google-cloud-bigquery")
     ap.add_argument("--project", help="GCP project for --live (default: GCP_PROJECT_ID env)")
     ap.add_argument("--out-dir", default=OUT_DIR, help="output directory (default: outputs/)")
+    ap.add_argument("--semantic", choices=["none", "tfidf", "azure", "github"], default="tfidf",
+                    help="意味チャネル(recall): tfidf = 鍵ゼロTF-IDF (既定), "
+                         "azure/github = APIエンベッダ, none = キーワードのみ")
     args = ap.parse_args()
 
     q = load_query_spec(args.brief)
@@ -80,6 +89,17 @@ def main() -> None:
 
     rows = _run_live(sql, args.project) if args.live else _load_export(args.from_export)
     cands = rank_rows(rows, q)
+
+    if args.semantic != "none":
+        embedder = None
+        if args.semantic in ("azure", "github"):
+            embedder = make_embedder_from_env(provider=args.semantic)
+            if embedder is None:
+                sys.exit(f"--semantic {args.semantic} の鍵/設定が見つかりません"
+                         "（Azure: AZURE_OPENAI_* + AZURE_OPENAI_EMBED_DEPLOYMENT, "
+                         "GitHub: GITHUB_MODELS_TOKEN）。鍵ゼロなら --semantic tfidf。")
+            print(f"semantic channel: {embedder.name} (model={embedder.model})")
+        cands = apply_semantic(cands, rows, q, embedder=embedder)
 
     csv_path = os.path.join(args.out_dir, "candidates.csv")
     with open(csv_path, "w", encoding="utf-8", newline="") as f:

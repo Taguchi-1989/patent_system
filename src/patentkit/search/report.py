@@ -68,17 +68,27 @@ def render_search_report(q: SearchQuery, cands: list[Candidate], total_rows: int
         + (f"（うち要確認 {flagged} 件）" if flagged else "")
     )
     lines.append("")
-    lines.append("| # | 番号 | スコア | 概念 | タイトル | 根拠（逐語） |")
-    lines.append("|---|---|---|---|---|---|")
+    with_semantic = any(c.semantic is not None for c in cands)
+    if with_semantic:
+        lines.append("| # | 番号 | 決定論 | 意味 | 融合 | 概念 | タイトル | 根拠（逐語） |")
+        lines.append("|---|---|---|---|---|---|---|---|")
+    else:
+        lines.append("| # | 番号 | スコア | 概念 | タイトル | 根拠（逐語） |")
+        lines.append("|---|---|---|---|---|---|")
     for i, c in enumerate(cands, 1):
         flag = " ⚠" if c.needs_review else ""
         ev = "<br>".join(c.evidence) if c.evidence else "—"
         title = (c.title[:80] + "…") if len(c.title) > 80 else c.title
-        lines.append(
-            f"| {i} | [{c.publication_number}](https://patents.google.com/patent/"
-            f"{c.publication_number.replace('-', '')}) | {c.score}{flag} | "
-            f"{c.groups_hit}/{c.groups_total} | {title} | {ev} |"
-        )
+        link = (f"[{c.publication_number}](https://patents.google.com/patent/"
+                f"{c.publication_number.replace('-', '')})")
+        if with_semantic:
+            sem = f"{c.semantic:.2f}" if c.semantic is not None else "—"
+            comb = f"{c.combined:.2f}" if c.combined is not None else "—"
+            lines.append(f"| {i} | {link} | {c.score}{flag} | {sem} | {comb} | "
+                         f"{c.groups_hit}/{c.groups_total} | {title} | {ev} |")
+        else:
+            lines.append(f"| {i} | {link} | {c.score}{flag} | "
+                         f"{c.groups_hit}/{c.groups_total} | {title} | {ev} |")
     lines.append("")
     notes = [n for c in cands for n in c.notes]
     if notes:
