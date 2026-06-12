@@ -99,6 +99,17 @@ def test_empty_input():
     assert n.confidence == 0.0
 
 
+def test_canonical_output_round_trips():
+    # The canonical form is the join key everywhere (search -> pipeline ->
+    # diff), so normalize() must accept its own output unchanged.
+    for raw in ["US10123456B2", "EP1234567B1", "WO2020123456A1", "特開2003-123456"]:
+        first = normalize(raw)
+        second = normalize(first.canonical)
+        assert second.canonical == first.canonical, raw
+        assert second.kind == first.kind, raw
+        assert not second.needs_review, raw
+
+
 if __name__ == "__main__":
     # Allow running without pytest installed.
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

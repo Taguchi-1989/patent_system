@@ -68,6 +68,22 @@ py -m http.server --directory site
 成果物：`site/index.html`（トリアージ一覧）→ 各特許の詳細（スコアパネル＋対比表＋提案）。
 Markdown（NotebookLM向け）が要るなら `py scripts/run_pipeline.py ...（同じ引数）` → `outputs/report.md`。
 
+### 番号リストが無い？ — 調査（検索）から始める（M8・鍵ゼロ）
+
+番号リストを「もらう」のではなく、**検索ブリーフ（概念キーワード×CPC×期間）から自分で見つける**：
+
+```bash
+# 1. 検索ブリーフ → BigQueryコンソールに貼れるSQLを生成（概念内OR・概念間AND）
+py scripts/search_patents.py samples/search_query_SAMPLE.json
+# 2. コンソールでSQL実行 → 結果をJSON保存 → ランク付け（逐語根拠・ファミリー集約）
+py scripts/search_patents.py samples/search_query_SAMPLE.json --from-export <結果.json>
+# → outputs/candidates.csv（そのまま build_site.py / run_pipeline.py の入力になる）
+# → outputs/search_report.md（サーチ式記録＝再現可能な調査ログ）
+```
+
+ランキングは決定論（タイトル/要約/CPCのアンカー採点＋逐語スニペット）。概念を取りこぼした
+候補は `needs_review` で要確認に落ちる——スコアリングと同じP-NO-GUESS。
+
 ### 鍵を入れる / 入れない（2モード）
 
 意味チャネル（recall）は `Judge` プロトコルの差し替え地点。**APIキーをどこかに刺すのではなく、
