@@ -35,6 +35,9 @@ from patentkit.connectors import (                                         # noq
     BigQuerySource,
     BulkDataSource,
     FixtureSource,
+    FixtureLegalStatusProvider,
+    apply_legal_status,
+    make_ops_provider_from_env,
 )
 from patentkit.export import render_report                                 # noqa: E402
 from patentkit.normalize import normalize                                  # noqa: E402
@@ -79,6 +82,20 @@ def _build_score_channels(args):
     return build_channels(judge)
 
 
+def build_legal_provider(args):
+    """Legal-status enrichment (M9): fixture = zero keys, ops = free EPO key."""
+    if args.legal == "fixture":
+        if not args.legal_file:
+            sys.exit("--legal fixture には --legal-file <status.json> が必要です"
+                     "（例: samples/legal_status_SAMPLE.json）")
+        return FixtureLegalStatusProvider(args.legal_file)
+    provider = make_ops_provider_from_env()
+    if provider is None:
+        sys.exit("--legal ops には OPS_CONSUMER_KEY / OPS_CONSUMER_SECRET が必要です"
+                 "（developers.epo.org で無料登録）。鍵ゼロなら --legal fixture を使用。")
+    return provider
+
+
 def build_source(args):
     if args.source == "fixture":
         if getattr(args, "fixtures_dir", None):
@@ -115,6 +132,10 @@ def main() -> int:
                    help="agent-filled worksheet JSON (for --llm agent)")
     p.add_argument("--emit-agent-worksheet",
                    help="write a worksheet JSON (claim elements + spec) for an agent to fill, then exit")
+    p.add_argument("--legal", choices=["none", "fixture", "ops"], default="none",
+                   help="legal-status enrichment: 'fixture' = local JSON (zero keys), "
+                        "'ops' = EPO OPS INPADOC (free key), 'none' (default)")
+    p.add_argument("--legal-file", help="legal-status fixture JSON (for --legal fixture)")
     args = p.parse_args()
 
     # 1. Ingestion
@@ -128,7 +149,7 @@ def main() -> int:
     if hasattr(source, "prefetch"):
         source.prefetch([n.canonical for n in normalized])
 
-    records, summaries, not_found, review = [], [], [], []
+    records, not_found, review = [], [], []
     for n in normalized:
         if n.needs_review:
             review.append(n.canonical or n.raw)
@@ -137,7 +158,14 @@ def main() -> int:
             not_found.append(n.canonical or n.raw)
             continue
         records.append(rec)
-        summaries.append(summarize(rec))  # 3. Analysis (deterministic, no LLM)
+
+    # 2b. Legal-status enrichment (M9) — before summarize so summaries carry it
+    dead = 0
+    if args.legal != "none":
+        infos = apply_legal_status(records, build_legal_provider(args))
+        dead = sum(1 for i in infos if i.status in ("LAPSED", "EXPIRED", "REVOKED"))
+
+    summaries = [summarize(rec) for rec in records]  # 3. Analysis (deterministic, no LLM)
 
     # 3b. Semantic comparison + FTO triage scoring (only when --spec is provided)
     comparisons = None
@@ -167,6 +195,8 @@ def main() -> int:
     print(f"  fetched : {len(records)}")
     print(f"  not found: {len(not_found)}  (no record in this source)")
     print(f"  flagged for review (normalization): {len(review)}")
+    if args.legal != "none":
+        print(f"  legal status: 失効/満了/取消 {dead} 件（根拠付きで除外候補に表示）")
     print(f"\nReport written to: {os.path.relpath(OUT_PATH, ROOT)}")
     return 0
 

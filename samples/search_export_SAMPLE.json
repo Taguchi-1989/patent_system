@@ -1,0 +1,52 @@
+[
+  {
+    "publication_number": "US-9500000-B2",
+    "family_id": "50000001",
+    "country_code": "US",
+    "publication_date": 20161122,
+    "title_localized": [{"text": "Wireless charger with foreign object detection", "language": "en"}],
+    "abstract_localized": [{"text": "A wireless power transmitter detects a metal object on the charging surface using quality-factor measurement and suspends inductive charging.", "language": "en"}],
+    "cpc": [{"code": "H02J50/12"}, {"code": "H02J50/60"}],
+    "assignee_harmonized": [{"name": "EXAMPLE POWER CORP"}]
+  },
+  {
+    "publication_number": "EP-3000000-A1",
+    "family_id": "50000001",
+    "country_code": "EP",
+    "publication_date": 20160330,
+    "title_localized": [{"text": "Wireless charger with foreign object detection", "language": "en"}],
+    "abstract_localized": [{"text": "A wireless power transmitter detects a metal object on the charging surface.", "language": "en"}],
+    "cpc": [{"code": "H02J50/60"}],
+    "assignee_harmonized": [{"name": "EXAMPLE POWER CORP"}]
+  },
+  {
+    "publication_number": "US-10123456-B2",
+    "family_id": "50000002",
+    "country_code": "US",
+    "publication_date": 20181106,
+    "title_localized": [{"text": "Adaptive coil alignment for wireless power transfer", "language": "en"}],
+    "abstract_localized": [{"text": "Coil alignment is adjusted adaptively. Foreign object detection interrupts power delivery when FOD thresholds are exceeded.", "language": "en"}],
+    "cpc": [{"code": "H02J50/90"}],
+    "assignee_harmonized": [{"name": "SAMPLE ELECTRONICS"}]
+  },
+  {
+    "publication_number": "US-11000001-B2",
+    "family_id": "50000003",
+    "country_code": "US",
+    "publication_date": 20210511,
+    "title_localized": [{"text": "Thermal management for an inductive charging pad", "language": "en"}],
+    "abstract_localized": [{"text": "A heat spreader cools the coil assembly of an inductive charging pad during high-power operation.", "language": "en"}],
+    "cpc": [{"code": "H02J50/10"}],
+    "assignee_harmonized": [{"name": "SAMPLE ELECTRONICS"}]
+  },
+  {
+    "publication_number": "US-12000002-B2",
+    "family_id": "50000004",
+    "country_code": "US",
+    "publication_date": 20240213,
+    "title_localized": [{"text": "Foreign object detection in resonant wireless power systems", "language": "en"}],
+    "abstract_localized": [{"text": "FOD based on coupled-mode observation in a resonant wireless power link.", "language": "en"}],
+    "cpc": [{"code": "H02J50/12"}],
+    "assignee_harmonized": [{"name": "EXAMPLE POWER CORP"}]
+  }
+]

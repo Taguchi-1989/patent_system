@@ -68,6 +68,52 @@ py -m http.server --directory site
 成果物：`site/index.html`（トリアージ一覧）→ 各特許の詳細（スコアパネル＋対比表＋提案）。
 Markdown（NotebookLM向け）が要るなら `py scripts/run_pipeline.py ...（同じ引数）` → `outputs/report.md`。
 
+### 番号リストが無い？ — 調査（検索）から始める（M8・鍵ゼロ）
+
+番号リストを「もらう」のではなく、**検索ブリーフ（概念キーワード×CPC×期間）から自分で見つける**：
+
+```bash
+# 1. 検索ブリーフ → BigQueryコンソールに貼れるSQLを生成（概念内OR・概念間AND）
+py scripts/search_patents.py samples/search_query_SAMPLE.json
+# 2. コンソールでSQL実行 → 結果をJSON保存 → ランク付け（逐語根拠・ファミリー集約）
+py scripts/search_patents.py samples/search_query_SAMPLE.json --from-export <結果.json>
+# → outputs/candidates.csv（build_site.py / run_pipeline.py の入力形式）
+# → outputs/search_report.md（サーチ式記録＝再現可能な調査ログ）
+# → outputs/fetch_records.sql（候補番号の全文取得SQL・claims込み）
+# 3. FTOスコアリングへ渡すときは fetch_records.sql の結果JSONを使う
+#    （検索SQLはコスト節約でクレーム本文を取らないため、検索の結果JSONを
+#      そのまま --export に渡すとクレームが空になりスコアが出ない）
+py scripts/build_site.py outputs/candidates.csv --source bq-export \
+   --export <fetch結果.json> --spec <自社仕様>
+```
+
+ランキングは**二チャネル**：決定論（タイトル/要約/CPCのアンカー採点＋逐語スニペット）×
+意味（TF-IDFコサイン・鍵ゼロ既定、`--semantic azure|github` でAPIエンベッダに差し替え可）。
+概念の取りこぼしやチャネル乖離は `needs_review` で要確認に落ちる——スコアリングと同じP-NO-GUESS。
+ブリーフの `report_type`（`prior-art` / `fto` / `sdi`）で調査様式に応じた枠組み文に変わる。
+
+### 生きている特許か？ — 法的状態（M9）
+
+失効・満了・取消の特許はFTOの障害にならない。`--legal` で法的状態を付与すると、
+死亡イベントの**逐語根拠つき**で除外候補に落ちる（根拠が無ければUNKNOWN＋要確認——
+存続を推測しない）：
+
+```bash
+py scripts/build_site.py outputs/candidates.csv --source ... --spec <自社仕様> \
+   --legal fixture --legal-file samples/legal_status_SAMPLE.json   # 鍵ゼロ
+# 実データは EPO OPS（developers.epo.org で無料登録 → OPS_CONSUMER_KEY/_SECRET）:
+#   --legal ops
+```
+
+### 同じサーチ式を定期実行して新着だけ追う — SDI監視（M11）
+
+```bash
+py scripts/sdi_monitor.py samples/search_query_SAMPLE.json --from-export <結果.json>
+# 1回目 = 初回ベースライン。2回目以降 = 新着のみ outputs/sdi_<テーマ>.md に報告
+# （新着ゼロは「変更なし」を明示）。状態は monitor_state/sdi/<テーマ>.json（コミット可）。
+# M6 の GitHub Actions cron に載せれば「毎週回して新着だけ通知」が自動化される。
+```
+
 ### 鍵を入れる / 入れない（2モード）
 
 意味チャネル（recall）は `Judge` プロトコルの差し替え地点。**APIキーをどこかに刺すのではなく、

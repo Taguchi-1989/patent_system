@@ -16,6 +16,10 @@
 | M5 | HTML UI（一覧→詳細→比較→差分履歴）＋ NotebookLM出力整形 | ✅ | Phase 1〜2 |
 | M6 | 監視自動化（GitHub Actions cron・差分通知） | ✅ | Phase 2〜3 |
 | M7 | 評価・品質ハードニング（回帰・コスト/レイテンシ） | ✅ | 横断 |
+| M8 | 調査（検索）モジュール＝番号を「もらう」から「見つける」へ | ✅ | 研究実用化 |
+| M9 | 法的状態・JP対応（INPADOC/OPS・J-PlatPat導線） | ✅ | 研究実用化 |
+| M10 | 意味検索（TF-IDF再ランク・Embedderシーム） | ✅ | 研究実用化 |
+| M11 | 調査レポート様式（先行技術/FTO/SDI・新着差分監視） | ✅ | 研究実用化 |
 
 ---
 
@@ -72,6 +76,60 @@
 
 - **目標**：「AI自走」を信頼するための回帰とコスト管理。
 - **成果物**：golden set拡張、回帰テスト、コスト/レイテンシ計測、失敗時の再試行・代替導線（§7.2）。
+
+## M8 — 調査（検索）モジュール ✅（完了）
+
+- **目標**：研究開発の実調査で使える入口。これまで「該当しそうな番号リスト」は外から
+  もらう前提だったが、**検索ブリーフ（キーワード概念×CPC×出願人×期間）から候補番号を
+  自分で見つける**。プロのサーチ式の作法（概念内OR・概念間AND）をそのままJSONにした。
+- **成果物**：
+  - `search/query.py`：検索ブリーフJSON → BigQueryコンソールに貼れるSQL（純関数・エスケープ機械保証）。
+  - `search/rank.py`：決定論ランキング（タイトル3点/要約1点/CPC2点、逐語根拠スニペット、
+    概念の取りこぼしは `needs_review`、ファミリー集約で重複排除）。
+  - `search/report.py`：**調査ログMarkdown**（サーチ式記録・再現用SQL・根拠付き候補表）と
+    `number,note` 形式CSV（既存パイプラインの入力にそのまま接続）。
+  - `scripts/search_patents.py`：SQL発行 → コンソール実行 → エクスポートJSONをランク付け、の鍵ゼロ導線。`--live` も対応。
+- **副産物（バグ修正）**：`normalize` が自分の正準出力（`US-9500000-B2`）をラウンドトリップ
+  できない結合キー破壊バグを発見・修正（種別コード前のダッシュ対応＋回帰テスト）。
+- **受け入れ**：`samples/search_query_SAMPLE.json` → SQL生成 → サンプルエクスポートのランク付け →
+  `outputs/candidates.csv` を `run_pipeline.py`/`build_site.py` に直結。✅（テスト17件追加）
+
+## M9 — 法的状態・JP対応 ✅（完了）
+
+- **目標**：FTOの最初の篩＝「その特許は生きているか」。基礎データセットに無い法的状態を
+  エンリッチで付与し、失効/満了/取消は**根拠イベントの逐語引用つき**で除外候補に落とす。
+- **成果物**：
+  - `connectors/legal_status.py`：`classify_events`（死亡イベントの明示根拠がある時のみ
+    LAPSED/EXPIRED/REVOKED。**根拠不在はUNKNOWN＋要確認＝ACTIVEを推測しない**。復活イベントで
+    UNKNOWNへ戻す）、`FixtureLegalStatusProvider`（鍵ゼロ）、`OPSLegalStatusProvider`
+    （EPO OPS INPADOC・無料キー・stdlib urllib・XMLパーサは純関数）。
+  - `run_pipeline.py` / `build_site.py` の `--legal {none,fixture,ops}` ＋ `--legal-file`。
+  - JP導線：BigQueryのJP行に J-PlatPat 番号検索の案内ノートを自動付与。
+- **受け入れ**：デモで失効2件が根拠（料金不納イベント等）つきでレポートに表示。✅
+
+## M10 — 意味検索 ✅（完了）
+
+- **目標**：キーワード検索の取りこぼし（言い換え・上位概念）を意味チャネルで補完。
+  スコアリングと同じ**二チャネル思想**＝決定論（キーワード）がアンカー、意味がrecall、
+  乖離は要確認。
+- **成果物**：`search/semantic.py` — 鍵ゼロ既定のTF-IDFコサイン（CJK bigramでJP対応・
+  決定論・再現可能）、`Embedder` プロトコル＋`OpenAICompatibleEmbedder`（Azure/GitHub
+  Models、env シーム、optional dep）。両チャネルを結果集合内で正規化して融合、
+  乖離>0.5 は `needs_review`。調査ログに 決定論/意味/融合 の3列。
+- **受け入れ**：`--semantic tfidf`（既定）でキーワード高×意味低（別ドメイン疑い）と
+  キーワード低×意味高（言い換え疑い）が両方フラグされる。✅
+
+## M11 — 調査レポート様式＋SDI ✅（完了）
+
+- **目標**：調査の「型」を成果物に。先行技術調査/FTO/SDIの様式と、「同じサーチ式を
+  定期実行して**新着だけ**報告」の運用。
+- **成果物**：
+  - 検索ブリーフの `report_type`（prior-art / fto / sdi）→ 調査ログの枠組み文と次アクションが
+    様式に応じて変わる（FTOは `--legal` 必須の注意など）。
+  - `search/sdi.py`＋`scripts/sdi_monitor.py`：テーマ別 seen-set（`monitor_state/sdi/<name>.json`、
+    コミット可能なJSON）、新着のみのMarkdownレポート（新着ゼロは「変更なし」明示）＋
+    新着のみCSV（パイプライン入力形式）。M6のActions cronにそのまま載る。
+- **受け入れ**：同一エクスポートで2回実行 → 1回目「初回ベースライン」、2回目「新着0・変更なし」。✅
 
 ---
 

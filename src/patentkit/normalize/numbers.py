@@ -90,9 +90,11 @@ _JP_DOCTYPE = {
 }
 
 # Trailing kind code: a letter (optionally one digit) at the end. We allow
-# whitespace before it (e.g. "10,123,456 B2") and then verify a digit precedes
-# it, so we don't mistake a stray trailing letter for a kind code.
-_KIND_RE = re.compile(r"\s*([A-Z]\d?)\s*$")
+# whitespace or a dash before it (e.g. "10,123,456 B2", canonical "US-…-B2")
+# and then verify a digit precedes it, so we don't mistake a stray trailing
+# letter for a kind code. Without the dash case, our own canonical output
+# would not round-trip ("US-9500000-B2" -> the "2" of B2 leaked into digits).
+_KIND_RE = re.compile(r"[\s\-‐−]*([A-Z]\d?)\s*$")
 # Characters we treat as separators when collapsing a number to bare digits.
 _SEPARATORS = str.maketrans({" ": "", "　": "", ",": "", ".": "", "/": "", "-": "", "‐": "", "−": "", "第": "", "号": ""})
 
@@ -143,7 +145,7 @@ def _split_kind(body: str) -> tuple[str, str | None]:
     if not m:
         return body, None
     head = body[: m.start()]
-    if not re.search(r"\d\s*$", head):  # a kind code must immediately follow a number
+    if not re.search(r"\d[\s\-‐−]*$", head):  # a kind code must follow a number
         return body, None
     return head, m.group(1)
 

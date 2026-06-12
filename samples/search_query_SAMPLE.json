@@ -1,0 +1,14 @@
+{
+  "name": "wireless-power-fod",
+  "purpose": "ワイヤレス充電製品のFTOスクリーニング候補探索（サンプル）",
+  "description": "A consumer wireless charging pad that detects foreign metal objects on the charging surface and suspends inductive power transfer for safety.",
+  "keywords": [
+    ["wireless power", "inductive charging", "wireless charger"],
+    ["foreign object detection", "FOD", "metal object"]
+  ],
+  "cpc": ["H02J50"],
+  "countries": ["US", "EP"],
+  "date_from": "2015-01-01",
+  "limit": 200,
+  "search_claims": false
+}
